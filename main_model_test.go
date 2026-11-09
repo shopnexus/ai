@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/shopnexus/ai/embed"
 	"github.com/shopnexus/ai/speech"
 )
 
@@ -31,5 +32,23 @@ func TestSpeechAndEmbeddingsShareOneProcess(t *testing.T) {
 	if _, err := tr.Transcribe(context.Background(), "gipformer-1.5", filepath.Join(wavs, "0.wav")); err != nil {
 		t.Fatal(err)
 	}
-	// Task 5 adds the embedder here, after the transcriber has loaded.
+	e, err := embed.New(embed.Config{
+		Models:     map[string]string{"siglip2-so400m-patch16-384": filepath.Join(models, "siglip2-so400m-patch16-384")},
+		NumThreads: 2, MaxConcurrent: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	res, err := e.Embed(context.Background(), "siglip2-so400m-patch16-384", []embed.Input{{Text: "a red circle"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Vectors[0]) != embed.Dimensions {
+		t.Errorf("dimensions = %d", len(res.Vectors[0]))
+	}
+	// Speech still works after the embedder loaded.
+	if _, err := tr.Transcribe(context.Background(), "gipformer-1.5", filepath.Join(wavs, "1.wav")); err != nil {
+		t.Fatal(err)
+	}
 }
