@@ -28,6 +28,11 @@ models)
 		curl -fsSL -o "gipformer-1.5/$f" "$GIPFORMER/$f"
 	done
 	curl -fsSL -o silero_vad.onnx "$SILERO"
+	# SigLIP 2 in fp32: the int8 files lose too much (README, Image).
+	mkdir -p siglip2-so400m-patch16-384
+	for f in onnx/vision_model.onnx onnx/text_model.onnx onnx/text_model.onnx_data tokenizer.model; do
+		curl -fsSL -o "siglip2-so400m-patch16-384/${f#onnx/}" "$SIGLIP/$f"
+	done
 	;;
 testwavs)
 	for f in 0.wav 1.wav 2.wav; do
