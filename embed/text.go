@@ -3,6 +3,7 @@ package embed
 import (
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/eliben/go-sentencepiece"
 )
@@ -29,8 +30,21 @@ func newTokenizer(path string) (*tokenizer, error) {
 	return &tokenizer{sp: sp, eos: info.EndOfSentenceID, pad: info.PadID}, nil
 }
 
+// maxTextBytes cuts a text before the tokenizer reads it. The tower takes
+// 63 pieces, and no Gemma piece is longer than a few dozen bytes, so 4 KiB
+// is far more than those pieces need; the tokenizer allocates in proportion
+// to what it reads, and a text of megabytes would cost gigabytes.
+const maxTextBytes = 4 << 10
+
 // ids gives the padded input ids and how many come before the padding.
 func (t *tokenizer) ids(text string) ([]int64, int) {
+	if len(text) > maxTextBytes {
+		cut := maxTextBytes
+		for cut > 0 && !utf8.RuneStart(text[cut]) {
+			cut--
+		}
+		text = text[:cut]
+	}
 	toks := t.sp.Encode(strings.ToLower(text))
 	raw := make([]int, len(toks))
 	for i, tok := range toks {

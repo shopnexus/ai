@@ -11,7 +11,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -65,5 +67,26 @@ func TestTokenizerMatchesTransformers(t *testing.T) {
 		if n != want.Tokens {
 			t.Errorf("%q: tokens = %d, want %d", want.Text, n, want.Tokens)
 		}
+	}
+}
+
+// A huge text is cut before the tokenizer sees it: the ids are the first
+// 63 pieces plus <eos>, and encoding does not grow with the input.
+func TestTokenizerCutsAHugeText(t *testing.T) {
+	tok, err := newTokenizer(filepath.Join(modelDir(t), "tokenizer.model"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	huge := strings.Repeat("xe đạp trẻ em ", 4<<20) // about 70 MB
+	var before, after runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&before)
+	ids, n := tok.ids(huge)
+	runtime.ReadMemStats(&after)
+	if n != maxTextTokens || len(ids) != maxTextTokens {
+		t.Fatalf("tokens = %d, ids = %d", n, len(ids))
+	}
+	if grew := after.TotalAlloc - before.TotalAlloc; grew > 64<<20 {
+		t.Errorf("encoding a huge text allocated %d MB", grew>>20)
 	}
 }
