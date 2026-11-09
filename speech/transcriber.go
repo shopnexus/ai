@@ -158,21 +158,17 @@ func (t *Transcriber) Transcribe(ctx context.Context, model, path string) (Resul
 		return res, nil
 	}
 
-	streams := make([]*sherpa.OfflineStream, len(pieces))
+	// Each piece decodes alone. On 2026-11-09, two concurrent 288 s requests
+	// decoded in batches of 30 s held 2.3 to 2.6 GiB and kept growing; one
+	// piece per call held about 1 GiB and took 4.3 s per request against 6.1 s.
+	texts := make([]string, len(pieces))
 	for i, p := range pieces {
-		streams[i] = sherpa.NewOfflineStream(rec)
-		streams[i].AcceptWaveform(SampleRate, p)
-		res.SpeechSeconds += float64(len(p)) / SampleRate
-	}
-	defer func() {
-		for _, s := range streams {
-			sherpa.DeleteOfflineStream(s)
-		}
-	}()
-	rec.DecodeStreams(streams)
-	texts := make([]string, len(streams))
-	for i, s := range streams {
+		s := sherpa.NewOfflineStream(rec)
+		s.AcceptWaveform(SampleRate, p)
+		rec.Decode(s)
 		texts[i] = s.GetResult().Text
+		sherpa.DeleteOfflineStream(s)
+		res.SpeechSeconds += float64(len(p)) / SampleRate
 	}
 	res.Text = strings.Join(strings.Fields(strings.ToLower(strings.Join(texts, " "))), " ")
 	return res, nil

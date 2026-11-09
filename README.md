@@ -48,8 +48,10 @@ reach it, and it has no Ingress.
 The upload goes to a temporary file: an mp4 from a phone often keeps its index
 at the end, and ffmpeg has to seek to read it. ffmpeg decodes the first audio
 track to 16 kHz mono. Silero VAD cuts the speech at silences into pieces of at
-most 20 s, and the recognizer decodes all pieces of a request in one batch.
-One recognizer per model serves every request. `AI_MAX_CONCURRENT` requests
+most 20 s, and the recognizer decodes the pieces one at a time. Decoding them
+in batches held more memory and was slower: two concurrent 288 s requests held
+2.3 GiB and more in batches, and about 1 GiB one piece at a time. One
+recognizer per model serves every request. `AI_MAX_CONCURRENT` requests
 decode at once and the others wait.
 
 Each request writes one log line with the model, the upload size, the audio
