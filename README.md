@@ -20,10 +20,11 @@ transducer with 68.6M parameters, on CPU through sherpa-onnx.
 | `response_format` | `json` (default), `verbose_json` or `text` |
 
 Other OpenAI fields are ignored. `json` answers
-`{"text": "...", "usage": {"type": "duration", "seconds": 42}}`, where
-`seconds` is the audio length rounded up. `verbose_json` adds `task`,
-`language` and `duration`, the audio length in seconds; LiteLLM asks for it
-when its caller names no format, and prices the call from `duration`. The text
+`{"text": "...", "duration": 41.2, "usage": {"type": "duration", "seconds": 42}}`,
+where `duration` is the audio length in seconds and `seconds` that length
+rounded up. `verbose_json` adds `task` and `language`. LiteLLM asks for
+`verbose_json` when its caller names no format, and prices every call from
+`duration`. A `text` answer carries no duration, so LiteLLM prices it at 0. The text
 is lower case without punctuation. Audio with no speech gives `{"text": ""}`.
 
 Errors use OpenAI's shape, `{"error": {"message", "type", "code"}}`:

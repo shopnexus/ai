@@ -79,6 +79,10 @@ func (h *handler) transcriptions(w http.ResponseWriter, r *http.Request) {
 			h.clientGone(attrs, start)
 			return
 		}
+		if errors.Is(err, errTempFile) {
+			fail(apiError{http.StatusInternalServerError, "internal_error", "the server cannot store the upload"}, err)
+			return
+		}
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
 			fail(apiError{http.StatusRequestEntityTooLarge, "too_large", fmt.Sprintf("the file is larger than %d MB", h.maxUpload>>20)}, err)
@@ -134,8 +138,9 @@ func (h *handler) transcriptions(w http.ResponseWriter, r *http.Request) {
 			"text": res.Text, "usage": usage,
 		})
 	default:
+		// duration lets LiteLLM price a call that asked for json.
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"text": res.Text, "usage": usage})
+		json.NewEncoder(w).Encode(map[string]any{"text": res.Text, "duration": res.AudioSeconds, "usage": usage})
 	}
 	// The text stays out of the log: it is what a person said.
 	h.log.Info("transcription", append(attrs,
@@ -185,18 +190,34 @@ func readForm(r *http.Request) (form, error) {
 	}
 }
 
+// errTempFile marks a failure to create or write the temp file, such as a
+// full disk: the server's fault, unlike an error reading the request.
+var errTempFile = errors.New("temp file")
+
 // spool copies the part to a temp file. On a copy error it still returns the
 // file's name.
 func spool(p *multipart.Part) (string, int64, error) {
 	tmp, err := os.CreateTemp("", "ai-upload-*")
 	if err != nil {
-		return "", 0, err
+		return "", 0, fmt.Errorf("%w: %w", errTempFile, err)
 	}
-	n, err := io.Copy(tmp, p)
-	if cerr := tmp.Close(); err == nil {
-		err = cerr
+	n, err := io.Copy(tempWriter{tmp}, p)
+	if cerr := tmp.Close(); err == nil && cerr != nil {
+		err = fmt.Errorf("%w: %w", errTempFile, cerr)
 	}
 	return tmp.Name(), n, err
+}
+
+// tempWriter marks its write errors with errTempFile, so a full disk is not
+// taken for a bad request.
+type tempWriter struct{ f *os.File }
+
+func (w tempWriter) Write(b []byte) (int, error) {
+	n, err := w.f.Write(b)
+	if err != nil {
+		err = fmt.Errorf("%w: %w", errTempFile, err)
+	}
+	return n, err
 }
 
 func field(p *multipart.Part) (string, error) {

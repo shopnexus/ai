@@ -121,8 +121,9 @@ func TestJSONResponse(t *testing.T) {
 		t.Errorf("Content-Type = %q", ct)
 	}
 	var got struct {
-		Text  string
-		Usage struct {
+		Text     string
+		Duration float64
+		Usage    struct {
 			Type    string
 			Seconds int
 		}
@@ -130,7 +131,8 @@ func TestJSONResponse(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
 		t.Fatal(err)
 	}
-	if got.Text != "âm lượng tivi giảm" || got.Usage.Type != "duration" || got.Usage.Seconds != 42 {
+	// LiteLLM prices a call from duration, so json carries it too.
+	if got.Text != "âm lượng tivi giảm" || got.Duration != 41.2 || got.Usage.Type != "duration" || got.Usage.Seconds != 42 {
 		t.Errorf("body = %+v", got)
 	}
 	if f.model != "gipformer-1.5" || string(f.upload) != "fake mp4 bytes" {
@@ -275,6 +277,29 @@ func TestClientGoneLeavesNoTempFile(t *testing.T) {
 	}
 	if strings.Contains(logs.String(), `"level":"ERROR"`) {
 		t.Errorf("a client that left was logged as an error: %s", logs.String())
+	}
+}
+
+// A temp file that cannot be written is the server's failure: 500, a fixed
+// message without the server's paths, and an ERROR log line.
+func TestTempFileFailureIsAServerError(t *testing.T) {
+	t.Setenv("TMPDIR", "/nonexistent-dir-for-ai-tests")
+	var logs bytes.Buffer
+	b, ct := body(t, model, file)
+	req := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", b)
+	req.Header.Set("Content-Type", ct)
+	rec := httptest.NewRecorder()
+	f := &fake{}
+	newHandler(f, 1<<20, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(rec, req)
+	wantError(t, rec, 500, "internal_error")
+	if strings.Contains(rec.Body.String(), "nonexistent") {
+		t.Errorf("the server's path leaked: %s", rec.Body)
+	}
+	if !strings.Contains(logs.String(), `"level":"ERROR"`) {
+		t.Errorf("no ERROR line: %s", logs.String())
+	}
+	if f.called {
+		t.Error("the transcriber was called")
 	}
 }
 
