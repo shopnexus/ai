@@ -22,16 +22,26 @@ type transcriber interface {
 }
 
 type handler struct {
-	t         transcriber
-	maxUpload int64
-	log       *slog.Logger
+	t   transcriber
+	e   embedder
+	lim limits
+	log *slog.Logger
 }
 
-// newHandler serves OpenAI's POST /v1/audio/transcriptions and the probes.
-func newHandler(t transcriber, maxUploadBytes int64, log *slog.Logger) http.Handler {
-	h := &handler{t: t, maxUpload: maxUploadBytes, log: log}
+// limits bounds the request bodies.
+type limits struct {
+	maxUpload     int64 // transcription file, bytes
+	maxInputs     int   // embeddings inputs per request
+	maxImageBytes int   // one image after base64 decoding
+}
+
+// newHandler serves OpenAI's POST /v1/audio/transcriptions and
+// POST /v1/embeddings, and the probes.
+func newHandler(t transcriber, e embedder, l limits, log *slog.Logger) http.Handler {
+	h := &handler{t: t, e: e, lim: l, log: log}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/audio/transcriptions", h.transcriptions)
+	mux.HandleFunc("POST /v1/embeddings", h.embeddings)
 	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
 	mux.HandleFunc("GET /healthz", ok) // the process runs
 	mux.HandleFunc("GET /readyz", ok)  // the server listens only after every model has loaded
@@ -55,7 +65,7 @@ type apiError struct {
 
 func (h *handler) transcriptions(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	r.Body = http.MaxBytesReader(w, r.Body, h.maxUpload)
+	r.Body = http.MaxBytesReader(w, r.Body, h.lim.maxUpload)
 	f, err := readForm(r)
 	defer func() {
 		if f.file != "" {
@@ -85,7 +95,7 @@ func (h *handler) transcriptions(w http.ResponseWriter, r *http.Request) {
 		}
 		var tooBig *http.MaxBytesError
 		if errors.As(err, &tooBig) {
-			fail(apiError{http.StatusRequestEntityTooLarge, "too_large", fmt.Sprintf("the file is larger than %d MB", h.maxUpload>>20)}, err)
+			fail(apiError{http.StatusRequestEntityTooLarge, "too_large", fmt.Sprintf("the file is larger than %d MB", h.lim.maxUpload>>20)}, err)
 			return
 		}
 		fail(apiError{http.StatusBadRequest, "invalid_request", err.Error()}, err)

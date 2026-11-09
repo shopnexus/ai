@@ -77,7 +77,7 @@ func call(t *testing.T, f *fake, limit int64, parts ...part) *httptest.ResponseR
 	req := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", b)
 	req.Header.Set("Content-Type", ct)
 	rec := httptest.NewRecorder()
-	newHandler(f, limit, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
+	newHandler(f, stubEmbedder{}, limits{maxUpload: limit, maxInputs: 16, maxImageBytes: 10 << 20}, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -256,7 +256,7 @@ func TestNotMultipart(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", strings.NewReader(`{"model":"gipformer-1.5"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	newHandler(&fake{}, 1<<20, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
+	newHandler(&fake{}, stubEmbedder{}, limits{maxUpload: 1 << 20, maxInputs: 16, maxImageBytes: 10 << 20}, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
 	wantError(t, rec, 400, "invalid_request")
 }
 
@@ -268,7 +268,7 @@ func TestClientGoneLeavesNoTempFile(t *testing.T) {
 	f := &fake{onCall: cancel}
 	var logs bytes.Buffer
 	rec := httptest.NewRecorder()
-	newHandler(f, 1<<20, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(rec, req)
+	newHandler(f, stubEmbedder{}, limits{maxUpload: 1 << 20, maxInputs: 16, maxImageBytes: 10 << 20}, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(rec, req)
 	if !f.called {
 		t.Fatal("the transcriber was not called")
 	}
@@ -290,7 +290,7 @@ func TestTempFileFailureIsAServerError(t *testing.T) {
 	req.Header.Set("Content-Type", ct)
 	rec := httptest.NewRecorder()
 	f := &fake{}
-	newHandler(f, 1<<20, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(rec, req)
+	newHandler(f, stubEmbedder{}, limits{maxUpload: 1 << 20, maxInputs: 16, maxImageBytes: 10 << 20}, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(rec, req)
 	wantError(t, rec, 500, "internal_error")
 	if strings.Contains(rec.Body.String(), "nonexistent") {
 		t.Errorf("the server's path leaked: %s", rec.Body)
@@ -304,7 +304,7 @@ func TestTempFileFailureIsAServerError(t *testing.T) {
 }
 
 func TestProbes(t *testing.T) {
-	h := newHandler(&fake{}, 1<<20, slog.New(slog.DiscardHandler))
+	h := newHandler(&fake{}, stubEmbedder{}, limits{maxUpload: 1 << 20, maxInputs: 16, maxImageBytes: 10 << 20}, slog.New(slog.DiscardHandler))
 	for _, p := range []string{"/healthz", "/readyz"} {
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, p, nil))
@@ -320,7 +320,7 @@ func TestTranscriptIsNeverLogged(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/audio/transcriptions", b)
 	req.Header.Set("Content-Type", ct)
 	f := &fake{result: speech.Result{Text: "số điện thoại của tôi", AudioSeconds: 2, SpeechSeconds: 1.5, Pieces: 1}}
-	newHandler(f, 1<<20, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(httptest.NewRecorder(), req)
+	newHandler(f, stubEmbedder{}, limits{maxUpload: 1 << 20, maxInputs: 16, maxImageBytes: 10 << 20}, slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(httptest.NewRecorder(), req)
 	if strings.Contains(logs.String(), "điện thoại") {
 		t.Errorf("the transcript is in the log: %s", logs.String())
 	}

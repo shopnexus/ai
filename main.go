@@ -42,7 +42,7 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           newHandler(t, int64(cfg.MaxUploadMB)<<20, log),
+		Handler:           newHandler(t, nil, limits{maxUpload: int64(cfg.MaxUploadMB) << 20}, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
