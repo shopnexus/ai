@@ -97,8 +97,8 @@ func (h *handler) transcriptions(w http.ResponseWriter, r *http.Request) {
 	case f.language != "" && f.language != "vi":
 		fail(apiError{http.StatusBadRequest, "invalid_request", "language must be empty or vi"}, nil)
 		return
-	case f.responseFormat != "" && f.responseFormat != "json" && f.responseFormat != "text":
-		fail(apiError{http.StatusBadRequest, "invalid_request", "response_format must be json or text"}, nil)
+	case f.responseFormat != "" && f.responseFormat != "json" && f.responseFormat != "text" && f.responseFormat != "verbose_json":
+		fail(apiError{http.StatusBadRequest, "invalid_request", "response_format must be json, verbose_json or text"}, nil)
 		return
 	case !h.t.HasModel(f.model):
 		fail(apiError{http.StatusNotFound, "model_not_found", fmt.Sprintf("the model %q does not exist", f.model)}, nil)
@@ -120,15 +120,22 @@ func (h *handler) transcriptions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if f.responseFormat == "text" {
+	usage := map[string]any{"type": "duration", "seconds": int(math.Ceil(res.AudioSeconds))}
+	switch f.responseFormat {
+	case "text":
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		io.WriteString(w, res.Text)
-	} else {
+	case "verbose_json":
+		// LiteLLM asks for this format when its caller names none, and prices
+		// the call from duration.
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{
-			"text":  res.Text,
-			"usage": map[string]any{"type": "duration", "seconds": int(math.Ceil(res.AudioSeconds))},
+			"task": "transcribe", "language": "vietnamese", "duration": res.AudioSeconds,
+			"text": res.Text, "usage": usage,
 		})
+	default:
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{"text": res.Text, "usage": usage})
 	}
 	// The text stays out of the log: it is what a person said.
 	h.log.Info("transcription", append(attrs,

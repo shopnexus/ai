@@ -17,12 +17,14 @@ transducer with 68.6M parameters, on CPU through sherpa-onnx.
 | `file` | required; any audio or video file ffmpeg reads |
 | `model` | required; a name from `AI_STT_MODELS` (`gipformer-1.5`) |
 | `language` | empty or `vi` |
-| `response_format` | `json` (default) or `text` |
+| `response_format` | `json` (default), `verbose_json` or `text` |
 
 Other OpenAI fields are ignored. `json` answers
 `{"text": "...", "usage": {"type": "duration", "seconds": 42}}`, where
-`seconds` is the audio length rounded up. The text is lower case without
-punctuation. Audio with no speech gives `{"text": ""}`.
+`seconds` is the audio length rounded up. `verbose_json` adds `task`,
+`language` and `duration`, the audio length in seconds; LiteLLM asks for it
+when its caller names no format, and prices the call from `duration`. The text
+is lower case without punctuation. Audio with no speech gives `{"text": ""}`.
 
 Errors use OpenAI's shape, `{"error": {"message", "type", "code"}}`:
 

@@ -152,6 +152,28 @@ func TestTextResponse(t *testing.T) {
 	}
 }
 
+// LiteLLM asks for verbose_json when its caller names no format, and prices
+// the call from duration.
+func TestVerboseJSONResponse(t *testing.T) {
+	f := &fake{result: speech.Result{Text: "âm lượng tivi giảm", AudioSeconds: 41.2}}
+	rec := call(t, f, 1<<20, model, file, part{name: "response_format", value: "verbose_json"})
+	if rec.Code != 200 {
+		t.Fatalf("status = %d; body %s", rec.Code, rec.Body)
+	}
+	var got struct {
+		Task     string
+		Language string
+		Duration float64
+		Text     string
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Task != "transcribe" || got.Language != "vietnamese" || got.Duration != 41.2 || got.Text != "âm lượng tivi giảm" {
+		t.Errorf("body = %+v", got)
+	}
+}
+
 func TestNoSpeechIsAnEmptyText(t *testing.T) {
 	rec := call(t, &fake{result: speech.Result{AudioSeconds: 3}}, 1<<20, model, file)
 	if rec.Code != 200 || !strings.Contains(rec.Body.String(), `"text":""`) {
