@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/shopnexus/ai/embed"
 	"github.com/shopnexus/ai/speech"
 )
 
@@ -40,9 +41,23 @@ func run(log *slog.Logger) error {
 	}
 	defer t.Close()
 
+	e, err := embed.New(embed.Config{
+		Models:        cfg.EmbedModels,
+		NumThreads:    cfg.NumThreads,
+		MaxConcurrent: cfg.EmbedMaxConcurrent,
+	})
+	if err != nil {
+		return err
+	}
+	defer e.Close()
+
 	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           newHandler(t, nil, limits{maxUpload: int64(cfg.MaxUploadMB) << 20}, log),
+		Addr: cfg.Addr,
+		Handler: newHandler(t, e, limits{
+			maxUpload:     int64(cfg.MaxUploadMB) << 20,
+			maxInputs:     cfg.EmbedMaxInputs,
+			maxImageBytes: cfg.EmbedMaxImageMB << 20,
+		}, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
@@ -56,7 +71,7 @@ func run(log *slog.Logger) error {
 		done <- srv.Shutdown(sctx)
 	}()
 
-	log.Info("listening", "addr", cfg.Addr, "models", t.Models())
+	log.Info("listening", "addr", cfg.Addr, "stt_models", t.Models(), "embed_models", e.Models())
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}

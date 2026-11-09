@@ -10,13 +10,17 @@ import (
 // Config holds the service's settings. Every variable is required. The chart
 // and compose set them all; the image sets none.
 type Config struct {
-	Addr            string            // AI_ADDR
-	STTModels       map[string]string // AI_STT_MODELS: name=dir pairs, comma-separated
-	VADModel        string            // AI_VAD_MODEL: path of silero_vad.onnx
-	NumThreads      int               // AI_NUM_THREADS: onnxruntime threads per decode
-	MaxConcurrent   int               // AI_MAX_CONCURRENT: requests decoding at once
-	MaxUploadMB     int               // AI_MAX_UPLOAD_MB
-	MaxAudioSeconds int               // AI_MAX_AUDIO_SECONDS
+	Addr               string            // AI_ADDR
+	STTModels          map[string]string // AI_STT_MODELS: name=dir pairs, comma-separated
+	VADModel           string            // AI_VAD_MODEL: path of silero_vad.onnx
+	NumThreads         int               // AI_NUM_THREADS: onnxruntime threads per decode
+	MaxConcurrent      int               // AI_MAX_CONCURRENT: requests decoding at once
+	MaxUploadMB        int               // AI_MAX_UPLOAD_MB
+	MaxAudioSeconds    int               // AI_MAX_AUDIO_SECONDS
+	EmbedModels        map[string]string // AI_EMBED_MODELS: name=dir pairs, comma-separated
+	EmbedMaxInputs     int               // AI_EMBED_MAX_INPUTS: inputs per request
+	EmbedMaxConcurrent int               // AI_EMBED_MAX_CONCURRENT: requests embedding at once
+	EmbedMaxImageMB    int               // AI_EMBED_MAX_IMAGE_MB: one image after base64 decoding
 }
 
 func loadConfig(getenv func(string) string) (Config, error) {
@@ -54,6 +58,16 @@ func loadConfig(getenv func(string) string) (Config, error) {
 	c.MaxConcurrent = positive("AI_MAX_CONCURRENT")
 	c.MaxUploadMB = positive("AI_MAX_UPLOAD_MB")
 	c.MaxAudioSeconds = positive("AI_MAX_AUDIO_SECONDS")
+	if v := str("AI_EMBED_MODELS"); v != "" {
+		m, err := parseModels(v)
+		if err != nil {
+			bad = append(bad, "AI_EMBED_MODELS: "+err.Error())
+		}
+		c.EmbedModels = m
+	}
+	c.EmbedMaxInputs = positive("AI_EMBED_MAX_INPUTS")
+	c.EmbedMaxConcurrent = positive("AI_EMBED_MAX_CONCURRENT")
+	c.EmbedMaxImageMB = positive("AI_EMBED_MAX_IMAGE_MB")
 
 	var errs []error
 	if len(missing) > 0 {
