@@ -1,3 +1,7 @@
+github.com/eliben/go-sentencepiece v0.7.0 h1:QpP9HpLXF7/TAZoskolXm7heEWkh9vpHVUgGR1AbY3o=
+github.com/eliben/go-sentencepiece v0.7.0/go.mod h1:nNYk4aMzgBoI6QFp4LUG8Eu1uO9fHD9L5ZEre93o9+c=
+github.com/google/go-cmp v0.5.5 h1:Khx7svrCpmxxtHBq5j2mp/xVjsi8hQMfNLvJFAlrGgU=
+github.com/google/go-cmp v0.5.5/go.mod h1:v8dTdLbMG2kIc/vJvl+f65V22dbkXbowE6jgT/gNBxE=
 github.com/k2-fsa/sherpa-onnx-go v1.13.8 h1:fyX96YdrMmK/DlBrGLmBat3OqRNsnVBFsRK5djCtVSg=
 github.com/k2-fsa/sherpa-onnx-go v1.13.8/go.mod h1:Sq4gTn8pkMsxfFPPFCBjmMzuRzWA8pHQUwW8gOp2OHs=
 github.com/k2-fsa/sherpa-onnx-go-linux v1.13.8 h1:33xcR9pYuD/VZ2luCWP1PJ4uLLeYM0i5GWGgM1lZjP8=
@@ -6,3 +10,11 @@ github.com/k2-fsa/sherpa-onnx-go-macos v1.13.8 h1:TQFOntGvoH+L+9HpmKukq6cDag674W
 github.com/k2-fsa/sherpa-onnx-go-macos v1.13.8/go.mod h1:ZOhUAXC62Unj0ZNfu6zxSFKcW96aXf7P3BsqiUyOBbE=
 github.com/k2-fsa/sherpa-onnx-go-windows v1.13.8 h1:PjALQ7qHH6wmGyVeHMhGESh+EAtC/24rzZIth4PXcEs=
 github.com/k2-fsa/sherpa-onnx-go-windows v1.13.8/go.mod h1:5AX7TU8+P/gInjglY1ijtWUM2b8iyR0QX4yEngzMe64=
+github.com/yalue/onnxruntime_go v1.32.1 h1:bjvmp0ONztctKBOkaU6hgphVoKPH3GTZAJvFfPHdtcI=
+github.com/yalue/onnxruntime_go v1.32.1/go.mod h1:b4X26A8pekNb1ACJ58wAXgNKeUCGEAQ9dmACut9Sm/4=
+golang.org/x/image v0.47.0 h1:za/8gVz++PPZqmZJBNSISICN5Rrj5zixP/8K++fgmqo=
+golang.org/x/image v0.47.0/go.mod h1:IkN5o4A7vq55vXN8FWjjnhg9Rs2GOtffqsSi9mWAKYE=
+golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543 h1:E7g+9GITq07hpfrRu66IVDexMakfv52eLZ2CXBWiKr4=
+golang.org/x/xerrors v0.0.0-20191204190536-9bdfabe68543/go.mod h1:I/5z698sn9Ka8TeJc9MKroUUfqBBauWjQqLJ2OPfmY0=
+google.golang.org/protobuf v1.34.2 h1:6xV6lTsCfpGD21XK49h7MhtcApnLqkfYgPcdHftf6hg=
+google.golang.org/protobuf v1.34.2/go.mod h1:qYOHts0dSfpeUzUFpOMr/WGzszTmLH+DiWniOlNbLDw=
