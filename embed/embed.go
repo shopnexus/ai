@@ -136,12 +136,25 @@ func (e *Embedder) Models() []string {
 }
 
 // Embed embeds every input of one request: the images in one run of the
-// vision tower, the texts in one run of the text tower. A refused image is
-// an *InputError wrapping ErrBadImage, before any run.
+// vision tower, the texts in one run of the text tower. It waits for a slot
+// first. A refused image is an *InputError wrapping ErrBadImage, before any
+// run.
 func (e *Embedder) Embed(ctx context.Context, name string, in []Input) (Result, error) {
 	m, ok := e.models[name]
 	if !ok {
 		return Result{}, ErrUnknownModel
+	}
+	// Decoding and tokenizing run under the slot too, so the slots bound the
+	// memory a request holds, and a caller gone while it waited starts
+	// nothing.
+	select {
+	case e.slots <- struct{}{}:
+	case <-ctx.Done():
+		return Result{}, ctx.Err()
+	}
+	defer func() { <-e.slots }()
+	if err := ctx.Err(); err != nil {
+		return Result{}, err
 	}
 	var (
 		imgIdx, txtIdx []int
@@ -165,13 +178,6 @@ func (e *Embedder) Embed(ctx context.Context, name string, in []Input) (Result, 
 		txtIdx = append(txtIdx, i)
 		res.Tokens += n
 	}
-
-	select {
-	case e.slots <- struct{}{}:
-	case <-ctx.Done():
-		return Result{}, ctx.Err()
-	}
-	defer func() { <-e.slots }()
 
 	if len(imgIdx) > 0 {
 		in, err := ort.NewTensor(ort.NewShape(int64(len(imgIdx)), 3, imageSide, imageSide), pix)

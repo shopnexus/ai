@@ -84,6 +84,9 @@ func (h *handler) embeddings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// The raw input is copied into inputs; drop it so a waiting request
+	// holds one copy.
+	req.Input = nil
 	in := make([]embed.Input, len(inputs))
 	for i, s := range inputs {
 		if !strings.HasPrefix(s, "data:image/") {
