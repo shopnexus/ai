@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 )
@@ -10,17 +11,20 @@ import (
 // Config holds the service's settings. Every variable is required. The chart
 // and compose set them all; the image sets none.
 type Config struct {
-	Addr               string            // AI_ADDR
-	STTModels          map[string]string // AI_STT_MODELS: name=dir pairs, comma-separated
-	VADModel           string            // AI_VAD_MODEL: path of silero_vad.onnx
-	NumThreads         int               // AI_NUM_THREADS: onnxruntime threads per decode
-	MaxConcurrent      int               // AI_MAX_CONCURRENT: requests decoding at once
-	MaxUploadMB        int               // AI_MAX_UPLOAD_MB
-	MaxAudioSeconds    int               // AI_MAX_AUDIO_SECONDS
-	EmbedModels        map[string]string // AI_EMBED_MODELS: name=dir pairs, comma-separated
-	EmbedMaxInputs     int               // AI_EMBED_MAX_INPUTS: inputs per request
-	EmbedMaxConcurrent int               // AI_EMBED_MAX_CONCURRENT: requests embedding at once
-	EmbedMaxImageMB    int               // AI_EMBED_MAX_IMAGE_MB: one image after base64 decoding
+	Addr                string            // AI_ADDR
+	STTModels           map[string]string // AI_STT_MODELS: name=dir pairs, comma-separated
+	VADModel            string            // AI_VAD_MODEL: path of silero_vad.onnx
+	NumThreads          int               // AI_NUM_THREADS: onnxruntime threads per decode
+	MaxConcurrent       int               // AI_MAX_CONCURRENT: requests decoding at once
+	MaxUploadMB         int               // AI_MAX_UPLOAD_MB
+	MaxAudioSeconds     int               // AI_MAX_AUDIO_SECONDS
+	EmbedModels         map[string]string // AI_EMBED_MODELS: name=dir pairs, comma-separated
+	EmbedMaxInputs      int               // AI_EMBED_MAX_INPUTS: inputs per request
+	EmbedMaxConcurrent  int               // AI_EMBED_MAX_CONCURRENT: requests embedding at once
+	EmbedMaxImageMB     int               // AI_EMBED_MAX_IMAGE_MB: one image after base64 decoding
+	FramesMaxConcurrent int               // AI_FRAMES_MAX_CONCURRENT: videos cut into frames at once
+	FramesMaxSeconds    int               // AI_FRAMES_MAX_SECONDS: longest video
+	FramesMinSharpness  float64           // AI_FRAMES_MIN_SHARPNESS: Laplacian variance under which a frame is blurred
 }
 
 func loadConfig(getenv func(string) string) (Config, error) {
@@ -42,6 +46,17 @@ func loadConfig(getenv func(string) string) (Config, error) {
 			bad = append(bad, fmt.Sprintf("%s=%q is not a positive integer", name, v))
 		}
 		return n
+	}
+	nonNegative := func(name string) float64 {
+		v := str(name)
+		if v == "" {
+			return 0
+		}
+		f, err := strconv.ParseFloat(v, 64)
+		if err != nil || f < 0 || math.IsNaN(f) || math.IsInf(f, 0) {
+			bad = append(bad, fmt.Sprintf("%s=%q is not a number of zero or more", name, v))
+		}
+		return f
 	}
 
 	var c Config
@@ -68,6 +83,9 @@ func loadConfig(getenv func(string) string) (Config, error) {
 	c.EmbedMaxInputs = positive("AI_EMBED_MAX_INPUTS")
 	c.EmbedMaxConcurrent = positive("AI_EMBED_MAX_CONCURRENT")
 	c.EmbedMaxImageMB = positive("AI_EMBED_MAX_IMAGE_MB")
+	c.FramesMaxConcurrent = positive("AI_FRAMES_MAX_CONCURRENT")
+	c.FramesMaxSeconds = positive("AI_FRAMES_MAX_SECONDS")
+	c.FramesMinSharpness = nonNegative("AI_FRAMES_MIN_SHARPNESS")
 
 	var errs []error
 	if len(missing) > 0 {

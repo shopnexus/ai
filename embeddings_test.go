@@ -58,7 +58,7 @@ func postEmbeddings(t *testing.T, e embedder, body string) *httptest.ResponseRec
 	req := httptest.NewRequest(http.MethodPost, "/v1/embeddings", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
-	newHandler(&fake{}, e, limits{maxUpload: 1 << 20, maxInputs: 3, maxImageBytes: 1 << 10}, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
+	newHandler(&fake{}, e, stubFramer{}, limits{maxUpload: 1 << 20, maxInputs: 3, maxImageBytes: 1 << 10}, slog.New(slog.DiscardHandler)).ServeHTTP(rec, req)
 	return rec
 }
 
@@ -192,7 +192,7 @@ func TestEmbeddingsClientGoneWhileWaiting(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/v1/embeddings",
 		strings.NewReader(`{"model":"siglip2-so400m-patch16-384","input":["a"]}`)).WithContext(ctx)
 	var logs bytes.Buffer
-	h := newHandler(&fake{}, stubEmbedder{block: block}, limits{maxUpload: 1 << 20, maxInputs: 3, maxImageBytes: 1 << 10},
+	h := newHandler(&fake{}, stubEmbedder{block: block}, stubFramer{}, limits{maxUpload: 1 << 20, maxInputs: 3, maxImageBytes: 1 << 10},
 		slog.New(slog.NewJSONHandler(&logs, nil)))
 	done := make(chan struct{})
 	go func() { h.ServeHTTP(httptest.NewRecorder(), req); close(done) }()
@@ -212,7 +212,7 @@ func TestEmbeddingsLogHoldsNoInput(t *testing.T) {
 	var logs bytes.Buffer
 	req := httptest.NewRequest(http.MethodPost, "/v1/embeddings",
 		strings.NewReader(`{"model":"siglip2-so400m-patch16-384","input":["secret words","`+pngURL+`"]}`))
-	newHandler(&fake{}, stubEmbedder{}, limits{maxUpload: 1 << 20, maxInputs: 3, maxImageBytes: 1 << 10},
+	newHandler(&fake{}, stubEmbedder{}, stubFramer{}, limits{maxUpload: 1 << 20, maxInputs: 3, maxImageBytes: 1 << 10},
 		slog.New(slog.NewJSONHandler(&logs, nil))).ServeHTTP(httptest.NewRecorder(), req)
 	if strings.Contains(logs.String(), "secret") || strings.Contains(logs.String(), "iVBOR") {
 		t.Errorf("log holds input: %s", logs.String())

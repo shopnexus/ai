@@ -8,17 +8,20 @@ import (
 
 func env(over map[string]string) func(string) string {
 	base := map[string]string{
-		"AI_ADDR":                 ":8000",
-		"AI_STT_MODELS":           "gipformer-1.5=/models/gipformer-1.5",
-		"AI_VAD_MODEL":            "/models/silero_vad.onnx",
-		"AI_NUM_THREADS":          "4",
-		"AI_MAX_CONCURRENT":       "2",
-		"AI_MAX_UPLOAD_MB":        "100",
-		"AI_MAX_AUDIO_SECONDS":    "300",
-		"AI_EMBED_MODELS":         "siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384",
-		"AI_EMBED_MAX_INPUTS":     "16",
-		"AI_EMBED_MAX_CONCURRENT": "2",
-		"AI_EMBED_MAX_IMAGE_MB":   "10",
+		"AI_ADDR":                  ":8000",
+		"AI_STT_MODELS":            "gipformer-1.5=/models/gipformer-1.5",
+		"AI_VAD_MODEL":             "/models/silero_vad.onnx",
+		"AI_NUM_THREADS":           "4",
+		"AI_MAX_CONCURRENT":        "2",
+		"AI_MAX_UPLOAD_MB":         "100",
+		"AI_MAX_AUDIO_SECONDS":     "300",
+		"AI_EMBED_MODELS":          "siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384",
+		"AI_EMBED_MAX_INPUTS":      "16",
+		"AI_EMBED_MAX_CONCURRENT":  "2",
+		"AI_EMBED_MAX_IMAGE_MB":    "10",
+		"AI_FRAMES_MAX_CONCURRENT": "2",
+		"AI_FRAMES_MAX_SECONDS":    "35",
+		"AI_FRAMES_MIN_SHARPNESS":  "30",
 	}
 	maps.Copy(base, over)
 	return func(k string) string { return base[k] }
@@ -102,5 +105,51 @@ func TestLoadConfigRefusesBadEmbedModels(t *testing.T) {
 	_, err := loadConfig(env(map[string]string{"AI_EMBED_MODELS": "siglip"}))
 	if err == nil || !strings.Contains(err.Error(), "AI_EMBED_MODELS") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestLoadConfigFrames(t *testing.T) {
+	c, err := loadConfig(env(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.FramesMaxConcurrent != 2 || c.FramesMaxSeconds != 35 || c.FramesMinSharpness != 30 {
+		t.Errorf("frames = %d %d %v", c.FramesMaxConcurrent, c.FramesMaxSeconds, c.FramesMinSharpness)
+	}
+	c, err = loadConfig(env(map[string]string{"AI_FRAMES_MIN_SHARPNESS": "0"}))
+	if err != nil || c.FramesMinSharpness != 0 {
+		t.Errorf("a floor of 0: %v, %v", c.FramesMinSharpness, err)
+	}
+	c, err = loadConfig(env(map[string]string{"AI_FRAMES_MIN_SHARPNESS": "12.5"}))
+	if err != nil || c.FramesMinSharpness != 12.5 {
+		t.Errorf("a floor of 12.5: %v, %v", c.FramesMinSharpness, err)
+	}
+}
+
+func TestLoadConfigNamesMissingFramesVariables(t *testing.T) {
+	_, err := loadConfig(env(map[string]string{
+		"AI_FRAMES_MAX_CONCURRENT": "", "AI_FRAMES_MAX_SECONDS": "", "AI_FRAMES_MIN_SHARPNESS": "",
+	}))
+	for _, name := range []string{"AI_FRAMES_MAX_CONCURRENT", "AI_FRAMES_MAX_SECONDS", "AI_FRAMES_MIN_SHARPNESS"} {
+		if err == nil || !strings.Contains(err.Error(), name) {
+			t.Errorf("err = %v, want it to name %s", err, name)
+		}
+	}
+}
+
+func TestLoadConfigRefusesBadFramesValues(t *testing.T) {
+	for name, over := range map[string]map[string]string{
+		"no slots":           {"AI_FRAMES_MAX_CONCURRENT": "0"},
+		"word for seconds":   {"AI_FRAMES_MAX_SECONDS": "many"},
+		"negative floor":     {"AI_FRAMES_MIN_SHARPNESS": "-1"},
+		"floor not a number": {"AI_FRAMES_MIN_SHARPNESS": "NaN"},
+		"infinite floor":     {"AI_FRAMES_MIN_SHARPNESS": "Inf"},
+		"word for the floor": {"AI_FRAMES_MIN_SHARPNESS": "sharp"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			if _, err := loadConfig(env(over)); err == nil {
+				t.Error("no error")
+			}
+		})
 	}
 }

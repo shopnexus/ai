@@ -1,5 +1,6 @@
 // Command ai serves self-hosted models behind OpenAI's API for LiteLLM to
-// route to. Today it does speech to text with Gipformer.
+// route to. It does speech to text with Gipformer, embeds photos and texts
+// with SigLIP 2, and cuts videos into frames for the server.
 package main
 
 import (
@@ -13,6 +14,7 @@ import (
 	"time"
 
 	"github.com/shopnexus/ai/embed"
+	"github.com/shopnexus/ai/frames"
 	"github.com/shopnexus/ai/speech"
 )
 
@@ -53,10 +55,15 @@ func run(log *slog.Logger) error {
 
 	srv := &http.Server{
 		Addr: cfg.Addr,
-		Handler: newHandler(t, e, limits{
+		Handler: newHandler(t, e, frameExtractor{frames.Config{
+			MinSeconds:   frames.MinSeconds,
+			MaxSeconds:   float64(cfg.FramesMaxSeconds),
+			MinSharpness: cfg.FramesMinSharpness,
+		}}, limits{
 			maxUpload:     int64(cfg.MaxUploadMB) << 20,
 			maxInputs:     cfg.EmbedMaxInputs,
 			maxImageBytes: cfg.EmbedMaxImageMB << 20,
+			frameJobs:     cfg.FramesMaxConcurrent,
 		}, log),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

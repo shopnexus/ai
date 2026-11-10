@@ -12,6 +12,10 @@ and short texts with SigLIP 2 (`google/siglip2-so400m-patch16-384`, Apache
 at revision `29f74e673c298fd07482d8e20138179282001eb7`, on CPU through
 onnxruntime.
 
+It cuts a seller's video into its sharpest distinct frames with ffmpeg, for
+the server's video read. The server calls that route directly, since it is
+not an OpenAI route.
+
 ## API
 
 `POST /v1/audio/transcriptions`, multipart:
@@ -68,6 +72,23 @@ the server sends upright photos.
 | 413 | `too_large` | a photo is over `AI_EMBED_MAX_IMAGE_MB` after base64 decoding |
 | 500 | `internal_error` | the model failed |
 
+`POST /v1/video/frames`, multipart, with one field `file`: a video ffmpeg
+reads. The answer is the video's length in seconds and at most 8 JPEG frames
+in time order:
+
+```json
+{"duration": 27.4, "frames": [{"at_seconds": 1.5, "sharpness": 412.3, "jpeg": "<base64>"}]}
+```
+
+| HTTP | `code` | Cause |
+|---|---|---|
+| 400 | `invalid_request` | the body is not multipart or has no `file` |
+| 400 | `unsupported_media` | ffprobe finds no video stream or no duration |
+| 400 | `too_short` | the video is under 3 seconds |
+| 413 | `too_large` | the body is over `AI_MAX_UPLOAD_MB` |
+| 413 | `too_long` | the video is over `AI_FRAMES_MAX_SECONDS` |
+| 500 | `internal_error` | ffmpeg or the JPEG encoder failed |
+
 `GET /healthz` and `GET /readyz` answer 200. The server starts listening after
 every model has loaded.
 
@@ -97,6 +118,22 @@ a caller that leaves while it waits frees its place. Each request writes one
 log line with the model, the photo and text counts, the tokens, the time taken
 and the status, and never an input.
 
+A frames request spools the upload to a temporary file, as a transcription
+does. ffprobe reads the duration, then ffmpeg decodes 2 frames a second of
+the first video stream, turned upright by its display matrix and scaled down
+to at most 1600 px on the long side; a smaller video keeps its size. Each frame is scored on a grey
+copy at most 512 px on its long side: the variance of its Laplacian for
+sharpness, and a 64-bit difference hash. A frame under
+`AI_FRAMES_MIN_SHARPNESS` counts as blurred. The video is cut into 8 equal
+spans, and each span keeps its sharpest frame that is not blurred, so at
+most 8 full frames stay in memory. A kept frame whose hash is within 6 bits
+of a sharper kept frame's is a duplicate and is dropped. When every frame is
+blurred, the sharpest one is kept. The frames are encoded as JPEG at quality
+90. `AI_FRAMES_MAX_CONCURRENT` videos are cut at once and the others wait.
+Each request writes one log line with the upload size, the duration, the
+frames decoded, dropped as blurred and dropped as duplicates, the frames
+kept, the time taken and the status.
+
 ## Configuration
 
 Every variable is required, and the image sets none of them; the chart and compose set all of them.
@@ -114,6 +151,9 @@ Every variable is required, and the image sets none of them; the chart and compo
 | `AI_EMBED_MAX_INPUTS` | inputs per embeddings request | `16` |
 | `AI_EMBED_MAX_CONCURRENT` | embeddings requests running at once | `2` |
 | `AI_EMBED_MAX_IMAGE_MB` | largest photo after base64 decoding | `10` |
+| `AI_FRAMES_MAX_CONCURRENT` | videos cut into frames at once | `2` |
+| `AI_FRAMES_MAX_SECONDS` | longest video | `35` |
+| `AI_FRAMES_MIN_SHARPNESS` | Laplacian variance under which a frame counts as blurred | `30` |
 
 ## Image
 
@@ -154,6 +194,16 @@ go test ./...
 AI_TEST_MODELS=$PWD/tmp/models AI_TEST_WAVS=$PWD/tmp/testwavs go test -race -tags model ./...
 docker build -t shopnexus-ai:local .
 ```
+
+The frames tests make their videos with ffmpeg and need `ffprobe` on the
+PATH too. To see how real videos score, put them in a directory and run:
+
+```bash
+AI_TEST_VIDEOS=$PWD/tmp/videos AI_TEST_FRAMES_OUT=$PWD/tmp/frames go test -tags measure -run TestMeasureSharpness -v ./frames/
+```
+
+It logs every decoded frame's time and sharpness and writes the frame to
+`tmp/frames/<video>/`, named by both.
 
 `uv run scripts/siglip-reference.py embed/testdata` draws the embed test
 images and writes `embed/testdata/reference.json` with transformers; run it

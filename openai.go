@@ -22,26 +22,30 @@ type transcriber interface {
 }
 
 type handler struct {
-	t   transcriber
-	e   embedder
-	lim limits
-	log *slog.Logger
+	t          transcriber
+	e          embedder
+	f          framer
+	frameSlots chan struct{}
+	lim        limits
+	log        *slog.Logger
 }
 
-// limits bounds the request bodies.
+// limits bounds the request bodies and the work at once.
 type limits struct {
-	maxUpload     int64 // transcription file, bytes
+	maxUpload     int64 // transcription or video file, bytes
 	maxInputs     int   // embeddings inputs per request
 	maxImageBytes int   // one image after base64 decoding
+	frameJobs     int   // videos cut into frames at once
 }
 
 // newHandler serves OpenAI's POST /v1/audio/transcriptions and
-// POST /v1/embeddings, and the probes.
-func newHandler(t transcriber, e embedder, l limits, log *slog.Logger) http.Handler {
-	h := &handler{t: t, e: e, lim: l, log: log}
+// POST /v1/embeddings, POST /v1/video/frames for the server, and the probes.
+func newHandler(t transcriber, e embedder, f framer, l limits, log *slog.Logger) http.Handler {
+	h := &handler{t: t, e: e, f: f, frameSlots: make(chan struct{}, l.frameJobs), lim: l, log: log}
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/audio/transcriptions", h.transcriptions)
 	mux.HandleFunc("POST /v1/embeddings", h.embeddings)
+	mux.HandleFunc("POST /v1/video/frames", h.videoFrames)
 	ok := func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) }
 	mux.HandleFunc("GET /healthz", ok) // the process runs
 	mux.HandleFunc("GET /readyz", ok)  // the server listens only after every model has loaded
