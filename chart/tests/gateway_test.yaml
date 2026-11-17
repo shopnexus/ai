@@ -48,7 +48,12 @@ tests:
       - equal: { path: metadata.name, value: ai-gateway }
       - equal: { path: 'spec.template.spec.containers[0].image', value: "ghcr.io/berriai/litellm-database:v1.108.0" }
       - exists: { path: 'spec.template.metadata.annotations["checksum/config"]' }
-      - lengthEqual: { path: 'spec.template.spec.containers[0].env', count: 4 }
+      - lengthEqual: { path: 'spec.template.spec.containers[0].env', count: 6 }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: UI_PASSWORD
+            valueFrom: { secretKeyRef: { name: litellm-secrets, key: LITELLM_UI_PASSWORD } }
       - contains:
           path: spec.template.spec.containers[0].env
           content:

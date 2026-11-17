@@ -33,7 +33,9 @@ A budget counts tokens for aliases priced by token, seconds of audio for
 vectors of the TEI the stacks ran before at a cosine of 0.999999, and
 Parasail's gave 0.996. A key's secret is the client's: the Job reads each
 key's value from the Secret its `secret` names and never prints it. After a
-reseal of `litellm-secrets`, restart `ai-gateway`.
+reseal of `litellm-secrets`, restart `ai-gateway`. The admin UI
+(`litellm.<domain>`, behind the console's sign-in) takes `LITELLM_UI_USERNAME`
+and `LITELLM_UI_PASSWORD` from the same Secret.
 
 `helm unittest chart` runs the chart's tests; CI runs them on every push.
 

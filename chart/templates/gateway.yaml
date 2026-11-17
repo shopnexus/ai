@@ -35,6 +35,12 @@ spec:
           env:
             - name: LITELLM_MASTER_KEY
               valueFrom: { secretKeyRef: { name: {{ $g.secret }}, key: LITELLM_MASTER_KEY } }
+            # The admin UI's own sign-in, apart from the master key; the UI
+            # sits behind the console's sign-in too (litellm.<domain>).
+            - name: UI_USERNAME
+              valueFrom: { secretKeyRef: { name: {{ $g.secret }}, key: LITELLM_UI_USERNAME } }
+            - name: UI_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $g.secret }}, key: LITELLM_UI_PASSWORD } }
             {{- $seen := dict }}
             {{- range $name, $a := $g.aliases }}
             {{- if and $a.apiKeySecret (not (hasKey $seen $a.apiKeySecret)) }}
