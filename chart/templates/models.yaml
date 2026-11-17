@@ -22,21 +22,14 @@ spec:
         - name: ai-models
           image: {{ include "ai.image" .Values.images.models }}
           env:
-            - { name: AI_ADDR, value: ":8000" }
-            - { name: AI_STT_MODELS, value: gipformer-1.5=/models/gipformer-1.5 }
-            - { name: AI_VAD_MODEL, value: /models/silero_vad.onnx }
-            - { name: AI_NUM_THREADS, value: {{ required "models.numThreads is required" $m.numThreads | toString | quote }} }
-            - { name: AI_MAX_CONCURRENT, value: {{ required "models.maxConcurrent is required" $m.maxConcurrent | toString | quote }} }
-            - { name: AI_MAX_UPLOAD_MB, value: {{ required "models.maxUploadMB is required" $m.maxUploadMB | toString | quote }} }
-            - { name: AI_MAX_AUDIO_SECONDS, value: {{ required "models.maxAudioSeconds is required" $m.maxAudioSeconds | toString | quote }} }
+            {{- /* env/models.env, which compose reads too, then AI_EMBED_MODELS. */}}
+            {{- $shared := include "ai.envFile" (dict "root" . "file" "env/models.env") | fromJson }}
+            {{- if hasKey $shared "AI_EMBED_MODELS" }}{{ fail "AI_EMBED_MODELS is set per stack in models.embedModels, not in env/models.env" }}{{ end }}
+            {{- range $k, $v := $shared }}
+            - { name: {{ $k }}, value: {{ $v | quote }} }
+            {{- end }}
             {{- if not (kindIs "string" $m.embedModels) }}{{ fail "models.embedModels must be a string: name=dir pairs, or empty for none" }}{{ end }}
             - { name: AI_EMBED_MODELS, value: {{ $m.embedModels | quote }} }
-            - { name: AI_EMBED_MAX_INPUTS, value: {{ required "models.embedMaxInputs is required" $m.embedMaxInputs | toString | quote }} }
-            - { name: AI_EMBED_MAX_CONCURRENT, value: {{ required "models.embedMaxConcurrent is required" $m.embedMaxConcurrent | toString | quote }} }
-            - { name: AI_EMBED_MAX_IMAGE_MB, value: {{ required "models.embedMaxImageMB is required" $m.embedMaxImageMB | toString | quote }} }
-            - { name: AI_FRAMES_MAX_CONCURRENT, value: {{ required "models.framesMaxConcurrent is required" $m.framesMaxConcurrent | toString | quote }} }
-            - { name: AI_FRAMES_MAX_SECONDS, value: {{ required "models.framesMaxSeconds is required" $m.framesMaxSeconds | toString | quote }} }
-            - { name: AI_FRAMES_MIN_SHARPNESS, value: {{ required "models.framesMinSharpness is required" $m.framesMinSharpness | toString | quote }} }
           ports:
             - { name: http, containerPort: 8000 }
           # Loading the models takes seconds to a minute, and the server listens after it.

@@ -92,3 +92,18 @@ general_settings:
 litellm_settings:
   drop_params: true
 {{- end }}
+
+{{/* An env file of env/ (KEY=value lines, # comments) as a JSON object.
+     The umbrella's docker-compose.yml reads the same files with env_file. */}}
+{{- define "ai.envFile" -}}
+{{- $out := dict }}
+{{- range splitList "\n" (.root.Files.Get .file) }}
+{{- $line := trim . }}
+{{- if and $line (not (hasPrefix "#" $line)) }}
+{{- $kv := splitn "=" 2 $line }}
+{{- if lt (len $kv) 2 }}{{ fail (printf "%s: %q is not KEY=value" $.file $line) }}{{ end }}
+{{- $_ := set $out $kv._0 $kv._1 }}
+{{- end }}
+{{- end }}
+{{- toJson $out }}
+{{- end }}

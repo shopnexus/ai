@@ -3,7 +3,7 @@ templates: [models.yaml]
 release: { namespace: shopnexus-prod }
 values: [values-test.yaml]
 tests:
-  - it: runs ai-models with every AI_ variable from values
+  - it: runs ai-models with every AI_ variable, from env/models.env and values
     documentIndex: 0
     asserts:
       - isKind: { of: Deployment }

@@ -82,21 +82,13 @@ gateway:
     # tpmLimit.
     agent: { secret: { name: agent-secrets, key: AGENT_LLM_API_KEY }, models: [console-agent], dailyUnits: 20000000 }
 
-# ai-models: speech to text, SigLIP 2 photo embeddings and video frames.
-# embedModels "" loads no SigLIP 2 (4.5 GB of weights): a stack short of
-# memory runs speech and frames alone, and embed-image answers 404.
+# ai-models: speech to text, SigLIP 2 photo embeddings and video frames. Its
+# settings that every stack shares are in env/models.env, which the
+# umbrella's compose reads too. embedModels "" loads no SigLIP 2 (4.5 GB of
+# weights): a stack short of memory runs speech and frames alone, and
+# embed-image answers 404.
 models:
   embedModels: ""
-  numThreads: 4
-  maxConcurrent: 2
-  maxUploadMB: 100
-  maxAudioSeconds: 300
-  embedMaxInputs: 16
-  embedMaxConcurrent: 2
-  embedMaxImageMB: 10
-  framesMaxConcurrent: 2
-  framesMaxSeconds: 35
-  framesMinSharpness: 30
   startupSeconds: 180
   memoryRequest: ""
   memoryLimit: ""

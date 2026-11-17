@@ -177,9 +177,9 @@ kept, the time taken and the status.
 
 ## Configuration
 
-Every variable is required, and the image sets none of them; the chart and compose set all of them.
+Every variable is required, and the image sets none of them. `chart/env/models.env` holds every one but `AI_EMBED_MODELS`: the chart adds it to ai-models' env, and the umbrella's `docker-compose.yml` reads it with `env_file` from the submodule. `AI_EMBED_MODELS` is set per stack, in the chart's `models.embedModels` and in compose's `x-ai-models` block.
 
-| Variable | Meaning | Chart and compose |
+| Variable | Meaning | Value |
 |---|---|---|
 | `AI_ADDR` | listen address | `:8000` |
 | `AI_STT_MODELS` | `name=dir` pairs, comma-separated | `gipformer-1.5=/models/gipformer-1.5` |
