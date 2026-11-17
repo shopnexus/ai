@@ -50,7 +50,7 @@ KEY_{{ . | upper | replace "-" "_" }}
 {{- end }}
 
 {{/* LiteLLM's config.yaml: one model_list entry per gateway.aliases, priced so
-     budgets count tokens or seconds. */}}
+     budgets count tokens, seconds or dollars. */}}
 {{- define "ai.gatewayConfig" -}}
 model_list:
 {{- range $name, $a := .Values.gateway.aliases }}
@@ -75,8 +75,11 @@ model_list:
       output_cost_per_token: 0.000001
       {{- else if eq $a.price "second" }}
       input_cost_per_second: 0.000001
+      {{- else if eq $a.price "usd" }}
+      input_cost_per_token: {{ required (printf "gateway.aliases.%s.inputCostPerToken is required" $name) $a.inputCostPerToken }}
+      output_cost_per_token: {{ required (printf "gateway.aliases.%s.outputCostPerToken is required" $name) $a.outputCostPerToken }}
       {{- else }}
-      {{- fail (printf "gateway.aliases.%s.price must be token or second" $name) }}
+      {{- fail (printf "gateway.aliases.%s.price must be token, second or usd" $name) }}
       {{- end }}
 {{- end }}
 general_settings:

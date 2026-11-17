@@ -12,3 +12,4 @@ gateway:
     server-trust: { dailyUnits: 6000000, tpmLimit: 150000 }
     server-embed-index: { dailyUnits: 50000000, rpmLimit: 600 }
     server-embed-search: { dailyUnits: 10000000, rpmLimit: 600 }
+    agent: { tpmLimit: 200000 }

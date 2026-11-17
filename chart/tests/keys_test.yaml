@@ -24,15 +24,15 @@ tests:
       - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-trust","max_budget":6,"models":\["scam-check"\],"tpm_limit":150000' }
       - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-embed-index","max_budget":50,"models":\["embed-text","embed-image"\],"rpm_limit":600' }
       - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-embed-search","max_budget":10,"models":\["embed-text","embed-image"\],"rpm_limit":600' }
-  - it: takes a client's key from the secret its values name
-    set:
-      gateway.keys.agent: { secret: { name: agent-secrets, key: LLM_API_KEY }, models: [console-agent], dailyUnits: 20000000, tpmLimit: 200000 }
+  # The agent's key is in its own secret, and its budget is 20 USD a day.
+  - it: makes the console agent's key from agent-secrets with 20 USD a day
     asserts:
       - contains:
           path: spec.template.spec.containers[0].env
           content:
             name: KEY_AGENT
-            valueFrom: { secretKeyRef: { name: agent-secrets, key: LLM_API_KEY } }
+            valueFrom: { secretKeyRef: { name: agent-secrets, key: AGENT_LLM_API_KEY } }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"agent","max_budget":20,"models":\["console-agent"\],"tpm_limit":200000' }
   - it: refuses a key that names an alias the gateway does not have
     values: [values-test.yaml, values-bad-alias.yaml]
     asserts:
@@ -40,7 +40,7 @@ tests:
   - it: refuses a key over aliases priced in different units
     values: [values-test.yaml, values-mixed-units.yaml]
     asserts:
-      - failedTemplate: { errorPattern: "gateway.keys.server-stt mixes aliases priced by token and by second" }
+      - failedTemplate: { errorPattern: "gateway.keys.server-stt mixes aliases priced in different units" }
   - it: refuses a key with neither tpmLimit nor rpmLimit
     set:
       gateway.keys.loose: { secret: { name: server-secrets, key: LLM_API_KEY }, models: [search], dailyUnits: 1000 }

@@ -19,8 +19,9 @@ gateway:
   # The stack's Postgres: LiteLLM's own database and role, made by the stack.
   database: { host: postgres-rw, name: litellm, user: litellm, passwordSecret: litellm-db }
   # Clients ask for an alias. price sets what a budget counts: token (1e-6 a
-  # token, so 1 of budget is 1M tokens) or second (1e-6 a second of audio).
-  # extraBody goes to the upstream as is.
+  # token, so 1 of budget is 1M tokens), second (1e-6 a second of audio) or
+  # usd (the model's list price, inputCostPerToken and outputCostPerToken, so
+  # a budget is dollars). extraBody goes to the upstream as is.
   aliases:
     search:
       model: openai/anthropic/claude-haiku-5.5
@@ -37,11 +38,15 @@ gateway:
       apiBase: https://openrouter.ai/api/v1
       apiKeySecret: OPENROUTER_API_KEY
       price: token
+    # The console agent's model, priced at its list price (2 and 10 USD per 1M
+    # tokens in and out), so its key's budget is dollars.
     console-agent:
       model: openai/anthropic/claude-sonnet-5.5
       apiBase: https://openrouter.ai/api/v1
       apiKeySecret: OPENROUTER_API_KEY
-      price: token
+      price: usd
+      inputCostPerToken: "0.000002"   # a string: Helm prints a float as 2e-06
+      outputCostPerToken: "0.00001"
     # OpenRouter serves bge-m3 from DeepInfra (fp32), whose vectors match the
     # TEI the stack ran before at a cosine of 0.999999, and from Parasail at
     # 0.996. The pin keeps stored vectors and new ones in one space.
@@ -72,6 +77,9 @@ gateway:
     server-trust: { secret: { name: server-secrets, key: TRUST_LLM_API_KEY }, models: [scam-check] }
     server-embed-index: { secret: { name: server-secrets, key: EMBED_INDEX_API_KEY }, models: [embed-text, embed-image] }
     server-embed-search: { secret: { name: server-secrets, key: EMBED_SEARCH_API_KEY }, models: [embed-text, embed-image] }
+    # The console agent's key: 20 USD a day in every stack; the stack sets
+    # tpmLimit.
+    agent: { secret: { name: agent-secrets, key: AGENT_LLM_API_KEY }, models: [console-agent], dailyUnits: 20000000 }
 
 # ai-models: speech to text, SigLIP 2 photo embeddings and video frames.
 # embedModels "" loads no SigLIP 2 (4.5 GB of weights): a stack short of

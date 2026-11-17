@@ -12,6 +12,11 @@ tests:
       - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: search\\n    litellm_params:\\n      model: openai/anthropic/claude-haiku-5.5\\n      api_base: https://openrouter.ai/api/v1\\n      api_key: os.environ/OPENROUTER_API_KEY" }
       - matchRegex: { path: 'data["config.yaml"]', pattern: "input_cost_per_token: 0.000001\\n" }
       - matchRegex: { path: 'data["config.yaml"]', pattern: "output_cost_per_token: 0.000001\\n" }
+  # The agent's budget is dollars: its alias costs the model's list price.
+  - it: prices console-agent at its list price
+    documentIndex: 0
+    asserts:
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: console-agent\\n(.*\\n){4}    model_info:\\n      input_cost_per_token: 0.000002\\n      output_cost_per_token: 0.00001\\n" }
   - it: maps listing-read, scam-check and console-agent to OpenRouter
     documentIndex: 0
     asserts:

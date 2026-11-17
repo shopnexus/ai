@@ -16,8 +16,9 @@ its daily budget, and `ai-models`. The repo's `values.yaml` holds the hub's
 choices: the aliases and their models, the images, the settings of
 `ai-models`. A stack's file in `infra/ai/values-<stack>.yaml` sets the stack's
 name, every key's `dailyUnits` and limit, `models.embedModels` and the memory.
-A budget counts tokens for aliases priced by token and seconds of audio for
-`stt`: 1,000,000 units is 1 of LiteLLM budget.
+A budget counts tokens for aliases priced by token, seconds of audio for
+`stt` (1,000,000 units is 1 of LiteLLM budget), and dollars for
+`console-agent`, priced at its list price; the agent's key has 20 USD a day.
 
 | Alias | Upstream | Model |
 |---|---|---|

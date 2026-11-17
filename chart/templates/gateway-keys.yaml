@@ -9,7 +9,7 @@
 {{- if not (hasKey $aliases $m) }}{{ fail (printf "gateway.keys.%s names the alias %s, which gateway.aliases does not have" $name $m) }}{{ end }}
 {{- $_ := set $prices (get (get $aliases $m) "price") true }}
 {{- end }}
-{{- if gt (len $prices) 1 }}{{ fail (printf "gateway.keys.%s mixes aliases priced by token and by second" $name) }}{{ end }}
+{{- if gt (len $prices) 1 }}{{ fail (printf "gateway.keys.%s mixes aliases priced in different units" $name) }}{{ end }}
 {{- end }}
 apiVersion: batch/v1
 kind: Job
