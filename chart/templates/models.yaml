@@ -1,0 +1,71 @@
+{{- /* ai-models: the models the hub hosts itself. ai-gateway's aliases stt and
+       embed-image call it, and the server calls its frames route directly;
+       it has no authentication and no Ingress. */ -}}
+{{- $m := .Values.models }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-models
+  labels: {{- include "ai.labels" . | nindent 4 }}
+  annotations: {{- include "ai.wave" "0" | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: ai-models }
+  template:
+    metadata:
+      labels: {{- include "ai.podLabels" (dict "root" . "name" "ai-models") | nindent 8 }}
+    spec:
+      affinity:
+        {{- include "ai.preferRole" . | nindent 8 }}
+      containers:
+        - name: ai-models
+          image: {{ include "ai.image" .Values.images.models }}
+          env:
+            - { name: AI_ADDR, value: ":8000" }
+            - { name: AI_STT_MODELS, value: gipformer-1.5=/models/gipformer-1.5 }
+            - { name: AI_VAD_MODEL, value: /models/silero_vad.onnx }
+            - { name: AI_NUM_THREADS, value: {{ required "models.numThreads is required" $m.numThreads | toString | quote }} }
+            - { name: AI_MAX_CONCURRENT, value: {{ required "models.maxConcurrent is required" $m.maxConcurrent | toString | quote }} }
+            - { name: AI_MAX_UPLOAD_MB, value: {{ required "models.maxUploadMB is required" $m.maxUploadMB | toString | quote }} }
+            - { name: AI_MAX_AUDIO_SECONDS, value: {{ required "models.maxAudioSeconds is required" $m.maxAudioSeconds | toString | quote }} }
+            {{- if not (kindIs "string" $m.embedModels) }}{{ fail "models.embedModels must be a string: name=dir pairs, or empty for none" }}{{ end }}
+            - { name: AI_EMBED_MODELS, value: {{ $m.embedModels | quote }} }
+            - { name: AI_EMBED_MAX_INPUTS, value: {{ required "models.embedMaxInputs is required" $m.embedMaxInputs | toString | quote }} }
+            - { name: AI_EMBED_MAX_CONCURRENT, value: {{ required "models.embedMaxConcurrent is required" $m.embedMaxConcurrent | toString | quote }} }
+            - { name: AI_EMBED_MAX_IMAGE_MB, value: {{ required "models.embedMaxImageMB is required" $m.embedMaxImageMB | toString | quote }} }
+            - { name: AI_FRAMES_MAX_CONCURRENT, value: {{ required "models.framesMaxConcurrent is required" $m.framesMaxConcurrent | toString | quote }} }
+            - { name: AI_FRAMES_MAX_SECONDS, value: {{ required "models.framesMaxSeconds is required" $m.framesMaxSeconds | toString | quote }} }
+            - { name: AI_FRAMES_MIN_SHARPNESS, value: {{ required "models.framesMinSharpness is required" $m.framesMinSharpness | toString | quote }} }
+          ports:
+            - { name: http, containerPort: 8000 }
+          # Loading the models takes seconds to a minute, and the server listens after it.
+          startupProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 2
+            failureThreshold: {{ div (required "models.startupSeconds is required" $m.startupSeconds) 2 }}
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          # Uploads wait in /tmp while they decode.
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: "1", memory: {{ required "models.memoryRequest is required" $m.memoryRequest }} }
+            limits: { memory: {{ required "models.memoryLimit is required" $m.memoryLimit }} }
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-models
+  labels: {{- include "ai.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: ai-models }
+  ports:
+    - { name: http, port: 8000, targetPort: http }

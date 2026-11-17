@@ -1,6 +1,43 @@
 # ai
 
-ShopNexus's provider of self-hosted models. It serves OpenAI's API, and the
+ShopNexus's AI hub. Clients (the server, the console agent) call one gateway,
+`ai-gateway`, with a key per purpose and an alias such as `search` or
+`embed-text`; this repo decides which model answers each alias and what each
+key may spend. The gateway is LiteLLM, configured by the chart in `chart/`.
+Remote models go through OpenRouter. The models ShopNexus hosts itself run in
+`ai-models`, the Go service in this repo, described below.
+
+## Chart
+
+`chart/` deploys both into one stack's namespace: `ai-gateway` (LiteLLM, its
+config rendered from `gateway.aliases`, its database in the stack's Postgres),
+the Job `ai-gateway-keys` that makes every key of `gateway.keys` exist with
+its daily budget, and `ai-models`. The repo's `values.yaml` holds the hub's
+choices: the aliases and their models, the images, the settings of
+`ai-models`. A stack's file in `infra/ai/values-<stack>.yaml` sets the stack's
+name, every key's `dailyUnits` and limit, `models.embedModels` and the memory.
+A budget counts tokens for aliases priced by token and seconds of audio for
+`stt`: 1,000,000 units is 1 of LiteLLM budget.
+
+| Alias | Upstream | Model |
+|---|---|---|
+| `search`, `listing-read`, `scam-check` | OpenRouter | `anthropic/claude-haiku-5.5` |
+| `console-agent` | OpenRouter | `anthropic/claude-sonnet-5.5` |
+| `embed-text` | OpenRouter, DeepInfra only | `baai/bge-m3` |
+| `embed-image` | `ai-models` | `siglip2-so400m-patch16-384` |
+| `stt` | `ai-models` | `gipformer-1.5` |
+
+`embed-text` is pinned to DeepInfra: on 2026-11-17 its bge-m3 gave the
+vectors of the TEI the stacks ran before at a cosine of 0.999999, and
+Parasail's gave 0.996. A key's secret is the client's: the Job reads each
+key's value from the Secret its `secret` names and never prints it. After a
+reseal of `litellm-secrets`, restart `ai-gateway`.
+
+`helm unittest chart` runs the chart's tests; CI runs them on every push.
+
+## ai-models
+
+The rest of this README is about `ai-models`. It serves OpenAI's API, and the
 stack's LiteLLM routes an alias to it as it would to any provider. In the
 cluster the server calls LiteLLM and LiteLLM calls `ai`.
 

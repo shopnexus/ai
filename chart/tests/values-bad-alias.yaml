@@ -1,0 +1,3 @@
+gateway:
+  keys:
+    server-stt: { models: [stt, nope] }

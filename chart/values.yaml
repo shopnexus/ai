@@ -1,0 +1,93 @@
+# The hub's own choices: which model answers each purpose (gateway.aliases),
+# the images, and the settings of ai-models. A stack's values file
+# (infra/ai/values-<stack>.yaml) sets stack, every key's budget,
+# models.embedModels and the memory; the chart refuses to render without
+# them.
+stack: ""
+
+images:
+  gateway: { repository: ghcr.io/berriai/litellm-database, tag: v1.108.0 }
+  models: { repository: ghcr.io/shopnexus/ai, tag: main }
+  curl: { repository: curlimages/curl, tag: 8.23.0 }
+
+# Pods prefer nodes labelled role=<nodeRole>.
+nodeRole: app
+
+gateway:
+  # The Secret with LITELLM_MASTER_KEY and every alias's apiKeySecret.
+  secret: litellm-secrets
+  # The stack's Postgres: LiteLLM's own database and role, made by the stack.
+  database: { host: postgres-rw, name: litellm, user: litellm, passwordSecret: litellm-db }
+  # Clients ask for an alias. price sets what a budget counts: token (1e-6 a
+  # token, so 1 of budget is 1M tokens) or second (1e-6 a second of audio).
+  # extraBody goes to the upstream as is.
+  aliases:
+    search:
+      model: openai/anthropic/claude-haiku-5.5
+      apiBase: https://openrouter.ai/api/v1
+      apiKeySecret: OPENROUTER_API_KEY
+      price: token
+    listing-read:
+      model: openai/anthropic/claude-haiku-5.5
+      apiBase: https://openrouter.ai/api/v1
+      apiKeySecret: OPENROUTER_API_KEY
+      price: token
+    scam-check:
+      model: openai/anthropic/claude-haiku-5.5
+      apiBase: https://openrouter.ai/api/v1
+      apiKeySecret: OPENROUTER_API_KEY
+      price: token
+    console-agent:
+      model: openai/anthropic/claude-sonnet-5.5
+      apiBase: https://openrouter.ai/api/v1
+      apiKeySecret: OPENROUTER_API_KEY
+      price: token
+    # OpenRouter serves bge-m3 from DeepInfra (fp32), whose vectors match the
+    # TEI the stack ran before at a cosine of 0.999999, and from Parasail at
+    # 0.996. The pin keeps stored vectors and new ones in one space.
+    embed-text:
+      model: openai/baai/bge-m3
+      apiBase: https://openrouter.ai/api/v1
+      apiKeySecret: OPENROUTER_API_KEY
+      mode: embedding
+      price: token
+      extraBody: { provider: { order: [DeepInfra], allow_fallbacks: false } }
+    embed-image:
+      model: openai/siglip2-so400m-patch16-384
+      apiBase: http://ai-models:8000/v1
+      mode: embedding
+      price: token   # ai-models counts 576 tokens a photo, a text its tokens
+    stt:
+      model: openai/gipformer-1.5
+      apiBase: http://ai-models:8000/v1
+      mode: audio_transcription
+      price: second
+  # One virtual key per client purpose. secret is where the client's copy of
+  # the key lives; the key Job makes the key exist with that value. The
+  # stack's file sets dailyUnits and tpmLimit or rpmLimit.
+  keys:
+    server-llm: { secret: { name: server-secrets, key: LLM_API_KEY }, models: [search] }
+    server-stt: { secret: { name: server-secrets, key: STT_API_KEY }, models: [stt] }
+    server-assist: { secret: { name: server-secrets, key: ASSIST_LLM_API_KEY }, models: [listing-read] }
+    server-trust: { secret: { name: server-secrets, key: TRUST_LLM_API_KEY }, models: [scam-check] }
+    server-embed-index: { secret: { name: server-secrets, key: EMBED_INDEX_API_KEY }, models: [embed-text, embed-image] }
+    server-embed-search: { secret: { name: server-secrets, key: EMBED_SEARCH_API_KEY }, models: [embed-text, embed-image] }
+
+# ai-models: speech to text, SigLIP 2 photo embeddings and video frames.
+# embedModels "" loads no SigLIP 2 (4.5 GB of weights): a stack short of
+# memory runs speech and frames alone, and embed-image answers 404.
+models:
+  embedModels: ""
+  numThreads: 4
+  maxConcurrent: 2
+  maxUploadMB: 100
+  maxAudioSeconds: 300
+  embedMaxInputs: 16
+  embedMaxConcurrent: 2
+  embedMaxImageMB: 10
+  framesMaxConcurrent: 2
+  framesMaxSeconds: 35
+  framesMinSharpness: 30
+  startupSeconds: 180
+  memoryRequest: ""
+  memoryLimit: ""

@@ -1,0 +1,52 @@
+suite: gateway keys
+templates: [gateway-keys.yaml]
+release: { namespace: shopnexus-prod }
+values: [values-test.yaml]
+tests:
+  - it: makes server-llm's key with 2M tokens a day at 100k a minute, after the gateway is up
+    asserts:
+      - equal: { path: metadata.name, value: ai-gateway-keys }
+      - equal: { path: 'metadata.annotations["argocd.argoproj.io/sync-wave"]', value: "1" }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KEY_SERVER_LLM
+            valueFrom: { secretKeyRef: { name: server-secrets, key: LLM_API_KEY } }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: 'upsert server-llm "\$KEY_SERVER_LLM"' }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-llm","max_budget":2,"models":\["search"\],"tpm_limit":100000' }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: 'http://ai-gateway:4000/key/' }
+  - it: makes server-stt's key with 10 hours of audio a day at 60 a minute
+    asserts:
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-stt","max_budget":0.036,"models":\["stt"\],"rpm_limit":60' }
+  - it: makes the assist, trust and embed keys with their budgets
+    asserts:
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-assist","max_budget":12,"models":\["listing-read"\],"tpm_limit":300000' }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-trust","max_budget":6,"models":\["scam-check"\],"tpm_limit":150000' }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-embed-index","max_budget":50,"models":\["embed-text","embed-image"\],"rpm_limit":600' }
+      - matchRegex: { path: 'spec.template.spec.containers[0].args[0]', pattern: '"key_alias":"server-embed-search","max_budget":10,"models":\["embed-text","embed-image"\],"rpm_limit":600' }
+  - it: takes a client's key from the secret its values name
+    set:
+      gateway.keys.agent: { secret: { name: agent-secrets, key: LLM_API_KEY }, models: [console-agent], dailyUnits: 20000000, tpmLimit: 200000 }
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: KEY_AGENT
+            valueFrom: { secretKeyRef: { name: agent-secrets, key: LLM_API_KEY } }
+  - it: refuses a key that names an alias the gateway does not have
+    values: [values-test.yaml, values-bad-alias.yaml]
+    asserts:
+      - failedTemplate: { errorPattern: "gateway.keys.server-stt names the alias nope" }
+  - it: refuses a key over aliases priced in different units
+    values: [values-test.yaml, values-mixed-units.yaml]
+    asserts:
+      - failedTemplate: { errorPattern: "gateway.keys.server-stt mixes aliases priced by token and by second" }
+  - it: refuses a key with neither tpmLimit nor rpmLimit
+    set:
+      gateway.keys.loose: { secret: { name: server-secrets, key: LLM_API_KEY }, models: [search], dailyUnits: 1000 }
+    asserts:
+      - failedTemplate: { errorPattern: "gateway.keys.loose needs tpmLimit or rpmLimit" }
+  - it: refuses a key without a budget
+    set: { gateway.keys.server-llm.dailyUnits: null }
+    asserts:
+      - failedTemplate: { errorPattern: "gateway.keys.server-llm.dailyUnits is required" }

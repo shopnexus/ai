@@ -1,0 +1,68 @@
+suite: gateway
+templates: [gateway.yaml]
+release: { namespace: shopnexus-prod }
+values: [values-test.yaml]
+tests:
+  # Clients ask for search; ai-gateway sends it to Claude Haiku 5.5 through
+  # OpenRouter. At 1e-6 a token, 1 of budget is 1M tokens.
+  - it: maps search to OpenRouter at 1e-6 a token
+    documentIndex: 0
+    asserts:
+      - equal: { path: metadata.name, value: ai-gateway-config }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: search\\n    litellm_params:\\n      model: openai/anthropic/claude-haiku-5.5\\n      api_base: https://openrouter.ai/api/v1\\n      api_key: os.environ/OPENROUTER_API_KEY" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "input_cost_per_token: 0.000001\\n" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "output_cost_per_token: 0.000001\\n" }
+  - it: maps listing-read, scam-check and console-agent to OpenRouter
+    documentIndex: 0
+    asserts:
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: listing-read\\n    litellm_params:\\n      model: openai/anthropic/claude-haiku-5.5\\n      api_base: https://openrouter.ai/api/v1" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: scam-check\\n    litellm_params:\\n      model: openai/anthropic/claude-haiku-5.5\\n      api_base: https://openrouter.ai/api/v1" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: console-agent\\n    litellm_params:\\n      model: openai/anthropic/claude-sonnet-5.5\\n      api_base: https://openrouter.ai/api/v1" }
+  # bge-m3 from DeepInfra only: its vectors are the ones already stored.
+  - it: pins embed-text to DeepInfra's bge-m3
+    documentIndex: 0
+    asserts:
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: embed-text\\n    litellm_params:\\n      model: openai/baai/bge-m3\\n      api_base: https://openrouter.ai/api/v1\\n      api_key: os.environ/OPENROUTER_API_KEY\\n      extra_body: \\{\"provider\":\\{\"allow_fallbacks\":false,\"order\":\\[\"DeepInfra\"\\]\\}\\}\\n    model_info:\\n      mode: embedding" }
+  # stt and embed-image go to ai-models, which takes no key.
+  - it: maps stt and embed-image to ai-models
+    documentIndex: 0
+    asserts:
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: stt\\n    litellm_params:\\n      model: openai/gipformer-1.5\\n      api_base: http://ai-models:8000/v1\\n      api_key: none" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "mode: audio_transcription\\n      input_cost_per_second: 0.000001\\n" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "model_name: embed-image\\n    litellm_params:\\n      model: openai/siglip2-so400m-patch16-384\\n      api_base: http://ai-models:8000/v1\\n      api_key: none" }
+  # A search photo passes through the gateway; its spend logs keep no body.
+  - it: keeps request bodies out of the spend logs and keeps the logs 30 days
+    documentIndex: 0
+    asserts:
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "store_prompts_in_spend_logs: false\\n" }
+      - matchRegex: { path: 'data["config.yaml"]', pattern: "maximum_spend_logs_retention_period: 30d\\n" }
+  - it: runs the pinned LiteLLM with the OpenRouter key once and its database, and rolls on a config change
+    documentIndex: 1
+    asserts:
+      - isKind: { of: Deployment }
+      - equal: { path: metadata.name, value: ai-gateway }
+      - equal: { path: 'spec.template.spec.containers[0].image', value: "ghcr.io/berriai/litellm-database:v1.108.0" }
+      - exists: { path: 'spec.template.metadata.annotations["checksum/config"]' }
+      - lengthEqual: { path: 'spec.template.spec.containers[0].env', count: 4 }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: OPENROUTER_API_KEY
+            valueFrom: { secretKeyRef: { name: litellm-secrets, key: OPENROUTER_API_KEY } }
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content: { name: DATABASE_URL, value: "postgresql://litellm:$(DB_PASSWORD)@postgres-rw:5432/litellm" }
+      - equal: { path: 'metadata.labels["shopnexus.id.vn/stack"]', value: prod }
+  - it: serves on ai-gateway:4000
+    documentIndex: 2
+    asserts:
+      - equal: { path: metadata.name, value: ai-gateway }
+      - equal: { path: 'spec.ports[0].port', value: 4000 }
+  - it: refuses an alias without a model
+    values: [values-test.yaml, values-no-model.yaml]
+    asserts:
+      - failedTemplate: { errorPattern: "gateway.aliases.search.model is required" }
+  - it: refuses a stack without its name
+    set: { stack: "" }
+    asserts:
+      - failedTemplate: { errorPattern: "stack is required" }

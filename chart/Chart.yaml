@@ -1,0 +1,5 @@
+apiVersion: v2
+name: ai
+description: ShopNexus's AI hub in one stack, the LiteLLM gateway (ai-gateway) and the self-hosted models (ai-models).
+type: application
+version: 0.1.0

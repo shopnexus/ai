@@ -1,0 +1,76 @@
+{{- /* ai-gateway: LiteLLM, the one door to every model. Clients name an alias
+       and hold a key from gateway-keys.yaml. */ -}}
+{{- $g := .Values.gateway }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ai-gateway-config
+  labels: {{- include "ai.labels" . | nindent 4 }}
+data:
+  config.yaml: |
+    {{- include "ai.gatewayConfig" . | nindent 4 }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-gateway
+  labels: {{- include "ai.labels" . | nindent 4 }}
+  annotations: {{- include "ai.wave" "0" | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: ai-gateway }
+  template:
+    metadata:
+      labels: {{- include "ai.podLabels" (dict "root" . "name" "ai-gateway") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include "ai.gatewayConfig" . | sha256sum | trunc 16 }}
+    spec:
+      affinity:
+        {{- include "ai.preferRole" . | nindent 8 }}
+      containers:
+        - name: litellm
+          image: {{ include "ai.image" .Values.images.gateway }}
+          args: [--config, /etc/litellm/config.yaml, --port, "4000"]
+          env:
+            - name: LITELLM_MASTER_KEY
+              valueFrom: { secretKeyRef: { name: {{ $g.secret }}, key: LITELLM_MASTER_KEY } }
+            {{- $seen := dict }}
+            {{- range $name, $a := $g.aliases }}
+            {{- if and $a.apiKeySecret (not (hasKey $seen $a.apiKeySecret)) }}
+            {{- $_ := set $seen $a.apiKeySecret true }}
+            - name: {{ $a.apiKeySecret }}
+              valueFrom: { secretKeyRef: { name: {{ $g.secret }}, key: {{ $a.apiKeySecret }} } }
+            {{- end }}
+            {{- end }}
+            - name: DB_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ $g.database.passwordSecret }}, key: password } }
+            - name: DATABASE_URL
+              value: postgresql://{{ $g.database.user }}:$(DB_PASSWORD)@{{ $g.database.host }}:5432/{{ $g.database.name }}
+          ports:
+            - { name: http, containerPort: 4000 }
+          readinessProbe:
+            httpGet: { path: /health/readiness, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health/liveliness, port: http }
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          volumeMounts:
+            - { name: config, mountPath: /etc/litellm }
+          resources:
+            requests: { cpu: 100m, memory: 256Mi }
+            limits: { memory: 1Gi }
+      volumes:
+        - name: config
+          configMap: { name: ai-gateway-config }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-gateway
+  labels: {{- include "ai.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: ai-gateway }
+  ports:
+    - { name: http, port: 4000, targetPort: http }

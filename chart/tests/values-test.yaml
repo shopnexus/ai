@@ -1,0 +1,14 @@
+# A stack's values, as infra/ai/values-<stack>.yaml sets them.
+stack: prod
+models:
+  embedModels: siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384
+  memoryRequest: 6Gi
+  memoryLimit: 8Gi
+gateway:
+  keys:
+    server-llm: { dailyUnits: 2000000, tpmLimit: 100000 }
+    server-stt: { dailyUnits: 36000, rpmLimit: 60 }
+    server-assist: { dailyUnits: 12000000, tpmLimit: 300000 }
+    server-trust: { dailyUnits: 6000000, tpmLimit: 150000 }
+    server-embed-index: { dailyUnits: 50000000, rpmLimit: 600 }
+    server-embed-search: { dailyUnits: 10000000, rpmLimit: 600 }

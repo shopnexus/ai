@@ -1,0 +1,45 @@
+suite: models
+templates: [models.yaml]
+release: { namespace: shopnexus-prod }
+values: [values-test.yaml]
+tests:
+  - it: runs ai-models with every AI_ variable from values
+    documentIndex: 0
+    asserts:
+      - isKind: { of: Deployment }
+      - equal: { path: metadata.name, value: ai-models }
+      - equal: { path: 'spec.template.spec.containers[0].image', value: "ghcr.io/shopnexus/ai:main" }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_ADDR, value: ":8000" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_STT_MODELS, value: gipformer-1.5=/models/gipformer-1.5 } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_VAD_MODEL, value: /models/silero_vad.onnx } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_NUM_THREADS, value: "4" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_MAX_CONCURRENT, value: "2" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_MAX_UPLOAD_MB, value: "100" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_MAX_AUDIO_SECONDS, value: "300" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_EMBED_MODELS, value: siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384 } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_EMBED_MAX_INPUTS, value: "16" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_EMBED_MAX_CONCURRENT, value: "2" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_EMBED_MAX_IMAGE_MB, value: "10" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_FRAMES_MAX_CONCURRENT, value: "2" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_FRAMES_MAX_SECONDS, value: "35" } }
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_FRAMES_MIN_SHARPNESS, value: "30" } }
+      - equal: { path: 'spec.template.spec.containers[0].resources.requests.memory', value: 6Gi }
+      - equal: { path: 'spec.template.spec.containers[0].resources.limits.memory', value: 8Gi }
+      - equal: { path: 'spec.template.spec.containers[0].startupProbe.failureThreshold', value: 90 }
+      - equal: { path: 'spec.template.spec.containers[0].startupProbe.httpGet.path', value: /readyz }
+      - equal: { path: 'spec.template.spec.containers[0].livenessProbe.httpGet.path', value: /healthz }
+  # A stack short of memory runs speech and frames without SigLIP 2.
+  - it: sets AI_EMBED_MODELS to the empty string when no embedder is wanted
+    documentIndex: 0
+    values: [values-test.yaml, values-no-embed.yaml]
+    asserts:
+      - contains: { path: 'spec.template.spec.containers[0].env', content: { name: AI_EMBED_MODELS, value: "" } }
+  - it: refuses a stack without its memory
+    set: { models.memoryRequest: "" }
+    asserts:
+      - failedTemplate: { errorPattern: "models.memoryRequest is required" }
+  - it: serves on ai-models:8000
+    documentIndex: 1
+    asserts:
+      - equal: { path: metadata.name, value: ai-models }
+      - equal: { path: 'spec.ports[0].port', value: 8000 }

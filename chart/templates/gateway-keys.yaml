@@ -1,0 +1,57 @@
+{{- /* Makes each key of gateway.keys exist with this stack's budget: updates it
+       when it exists, creates it with the client's sealed value when it does
+       not. A key names only aliases of gateway.aliases, all priced in one
+       unit. It runs after ai-gateway is up (wave 1). */ -}}
+{{- $aliases := .Values.gateway.aliases }}
+{{- range $name, $k := .Values.gateway.keys }}
+{{- $prices := dict }}
+{{- range $m := (required (printf "gateway.keys.%s.models is required" $name) $k.models) }}
+{{- if not (hasKey $aliases $m) }}{{ fail (printf "gateway.keys.%s names the alias %s, which gateway.aliases does not have" $name $m) }}{{ end }}
+{{- $_ := set $prices (get (get $aliases $m) "price") true }}
+{{- end }}
+{{- if gt (len $prices) 1 }}{{ fail (printf "gateway.keys.%s mixes aliases priced by token and by second" $name) }}{{ end }}
+{{- end }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ai-gateway-keys
+  labels: {{- include "ai.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    {{- include "ai.wave" "1" | nindent 4 }}
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      labels: {{- include "ai.podLabels" (dict "root" . "name" "ai-gateway-keys") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: keys
+          image: {{ include "ai.image" .Values.images.curl }}
+          env:
+            - name: MASTER_KEY
+              valueFrom: { secretKeyRef: { name: {{ .Values.gateway.secret }}, key: LITELLM_MASTER_KEY } }
+            {{- range $name, $k := .Values.gateway.keys }}
+            {{- $s := required (printf "gateway.keys.%s.secret is required" $name) $k.secret }}
+            - name: {{ include "ai.keyEnv" $name }}
+              valueFrom: { secretKeyRef: { name: {{ required (printf "gateway.keys.%s.secret.name is required" $name) $s.name }}, key: {{ required (printf "gateway.keys.%s.secret.key is required" $name) $s.key }} } }
+            {{- end }}
+          command: [sh, -ec]
+          args:
+            - |
+              call() { curl -s -o /tmp/out -w '%{http_code}' -X POST "http://ai-gateway:4000/key/$1" \
+                -H "Authorization: Bearer $MASTER_KEY" -H 'Content-Type: application/json' -d "$body"; }
+              # $1 the key's alias, $2 its value, $3 the body without the value.
+              upsert() {
+                body="{\"key\":\"$2\",${3#?}"
+                code=$(call update)
+                if [ "$code" != 200 ]; then code=$(call generate); fi
+                # The response holds the key, so only its status is logged.
+                echo "key $1: HTTP $code"
+                [ "$code" = 200 ] || { grep -o '"message":"[^"]*"' /tmp/out; exit 1; }
+              }
+              {{- range $name, $k := .Values.gateway.keys }}
+              upsert {{ $name }} "${{ include "ai.keyEnv" $name }}" {{ include "ai.keyBody" (dict "alias" $name "k" $k) | squote }}
+              {{- end }}

@@ -8,6 +8,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    paths: ["chart/**"]
   workflow_dispatch:
 
 concurrency:
@@ -18,6 +20,18 @@ env:
   IMAGE: ghcr.io/${{ github.repository }}
 
 jobs:
+  # The chart the stacks deploy (infra/argocd/ai.yaml): its tests run on every
+  # push and on a pull request that changes it.
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: azure/setup-helm@v5
+      - name: Install helm-unittest
+        run: helm plugin install https://github.com/helm-unittest/helm-unittest --version v1.2.1 --verify=false
+      - run: helm lint chart -f chart/tests/values-test.yaml
+      - run: helm unittest chart
+
   build:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest

@@ -1,0 +1,3 @@
+gateway:
+  aliases:
+    search: { model: "" }
