@@ -147,7 +147,7 @@ Every variable is required, and the image sets none of them; the chart and compo
 | `AI_MAX_CONCURRENT` | requests decoding at once | `2` |
 | `AI_MAX_UPLOAD_MB` | largest file | `100` |
 | `AI_MAX_AUDIO_SECONDS` | longest audio | `300` |
-| `AI_EMBED_MODELS` | `name=dir` pairs, comma-separated | `siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384` |
+| `AI_EMBED_MODELS` | `name=dir` pairs, comma-separated; the empty string loads no embedding model, and `/v1/embeddings` then answers 404 | `siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384`, or empty where memory is short |
 | `AI_EMBED_MAX_INPUTS` | inputs per embeddings request | `16` |
 | `AI_EMBED_MAX_CONCURRENT` | embeddings requests running at once | `2` |
 | `AI_EMBED_MAX_IMAGE_MB` | largest photo after base64 decoding | `10` |

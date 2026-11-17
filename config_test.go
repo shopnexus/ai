@@ -6,7 +6,9 @@ import (
 	"testing"
 )
 
-func env(over map[string]string) func(string) string {
+// env is a lookup over the full configuration with over applied; a value of
+// unset in over removes the variable.
+func env(over map[string]string) func(string) (string, bool) {
 	base := map[string]string{
 		"AI_ADDR":                  ":8000",
 		"AI_STT_MODELS":            "gipformer-1.5=/models/gipformer-1.5",
@@ -24,8 +26,11 @@ func env(over map[string]string) func(string) string {
 		"AI_FRAMES_MIN_SHARPNESS":  "30",
 	}
 	maps.Copy(base, over)
-	return func(k string) string { return base[k] }
+	maps.DeleteFunc(base, func(_, v string) bool { return v == unset })
+	return func(k string) (string, bool) { v, ok := base[k]; return v, ok }
 }
+
+const unset = "\x00unset"
 
 func TestLoadConfig(t *testing.T) {
 	c, err := loadConfig(env(nil))
@@ -95,9 +100,19 @@ func TestLoadConfigEmbed(t *testing.T) {
 }
 
 func TestLoadConfigNamesMissingEmbedVariables(t *testing.T) {
-	_, err := loadConfig(env(map[string]string{"AI_EMBED_MODELS": "", "AI_EMBED_MAX_IMAGE_MB": ""}))
+	_, err := loadConfig(env(map[string]string{"AI_EMBED_MODELS": unset, "AI_EMBED_MAX_IMAGE_MB": ""}))
 	if err == nil || !strings.Contains(err.Error(), "AI_EMBED_MODELS") || !strings.Contains(err.Error(), "AI_EMBED_MAX_IMAGE_MB") {
 		t.Errorf("err = %v", err)
+	}
+}
+
+func TestLoadConfigTakesNoEmbedModels(t *testing.T) {
+	c, err := loadConfig(env(map[string]string{"AI_EMBED_MODELS": ""}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(c.EmbedModels) != 0 {
+		t.Errorf("EmbedModels = %v, want none", c.EmbedModels)
 	}
 }
 

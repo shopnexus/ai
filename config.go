@@ -9,7 +9,9 @@ import (
 )
 
 // Config holds the service's settings. Every variable is required. The chart
-// and compose set them all; the image sets none.
+// and compose set them all; the image sets none. AI_EMBED_MODELS set to the
+// empty string means no embedding model: SigLIP 2 is not loaded and
+// /v1/embeddings answers model_not_found.
 type Config struct {
 	Addr                string            // AI_ADDR
 	STTModels           map[string]string // AI_STT_MODELS: name=dir pairs, comma-separated
@@ -18,7 +20,7 @@ type Config struct {
 	MaxConcurrent       int               // AI_MAX_CONCURRENT: requests decoding at once
 	MaxUploadMB         int               // AI_MAX_UPLOAD_MB
 	MaxAudioSeconds     int               // AI_MAX_AUDIO_SECONDS
-	EmbedModels         map[string]string // AI_EMBED_MODELS: name=dir pairs, comma-separated
+	EmbedModels         map[string]string // AI_EMBED_MODELS: name=dir pairs, comma-separated; empty for none
 	EmbedMaxInputs      int               // AI_EMBED_MAX_INPUTS: inputs per request
 	EmbedMaxConcurrent  int               // AI_EMBED_MAX_CONCURRENT: requests embedding at once
 	EmbedMaxImageMB     int               // AI_EMBED_MAX_IMAGE_MB: one image after base64 decoding
@@ -27,10 +29,11 @@ type Config struct {
 	FramesMinSharpness  float64           // AI_FRAMES_MIN_SHARPNESS: Laplacian variance under which a frame is blurred
 }
 
-func loadConfig(getenv func(string) string) (Config, error) {
+func loadConfig(lookup func(string) (string, bool)) (Config, error) {
 	var missing, bad []string
 	str := func(name string) string {
-		v := strings.TrimSpace(getenv(name))
+		v, _ := lookup(name)
+		v = strings.TrimSpace(v)
 		if v == "" {
 			missing = append(missing, name)
 		}
@@ -73,7 +76,9 @@ func loadConfig(getenv func(string) string) (Config, error) {
 	c.MaxConcurrent = positive("AI_MAX_CONCURRENT")
 	c.MaxUploadMB = positive("AI_MAX_UPLOAD_MB")
 	c.MaxAudioSeconds = positive("AI_MAX_AUDIO_SECONDS")
-	if v := str("AI_EMBED_MODELS"); v != "" {
+	if v, set := lookup("AI_EMBED_MODELS"); !set {
+		missing = append(missing, "AI_EMBED_MODELS")
+	} else if v = strings.TrimSpace(v); v != "" {
 		m, err := parseModels(v)
 		if err != nil {
 			bad = append(bad, "AI_EMBED_MODELS: "+err.Error())

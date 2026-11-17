@@ -63,3 +63,17 @@ func TestEmbedLeftCallerStartsNoRun(t *testing.T) {
 		}
 	}
 }
+
+func TestNewWithNoModels(t *testing.T) {
+	e, err := New(Config{NumThreads: 1, MaxConcurrent: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer e.Close()
+	if e.HasModel("siglip2-so400m-patch16-384") || len(e.Models()) != 0 {
+		t.Errorf("models = %v, want none", e.Models())
+	}
+	if _, err := e.Embed(context.Background(), "siglip2-so400m-patch16-384", []Input{{Text: "a"}}); !errors.Is(err, ErrUnknownModel) {
+		t.Errorf("Embed = %v, want ErrUnknownModel", err)
+	}
+}

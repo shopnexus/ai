@@ -27,7 +27,7 @@ func main() {
 }
 
 func run(log *slog.Logger) error {
-	cfg, err := loadConfig(os.Getenv)
+	cfg, err := loadConfig(os.LookupEnv)
 	if err != nil {
 		return err
 	}
