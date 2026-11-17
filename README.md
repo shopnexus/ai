@@ -14,8 +14,9 @@ config rendered from `gateway.aliases`, its database in the stack's Postgres),
 the Job `ai-gateway-keys` that makes every key of `gateway.keys` exist with
 its daily budget, and `ai-models`. The repo's `values.yaml` holds the hub's
 choices: the aliases and their models, the images, the settings of
-`ai-models`. A stack's file in `infra/ai/values-<stack>.yaml` sets the stack's
-name, every key's `dailyUnits` and limit, `models.embedModels` and the memory.
+`ai-models`. Each stack's Application in the umbrella's `infra/argocd/ai.yaml`
+sets, in `helm.valuesObject`, the stack's name, every key's `dailyUnits` and
+limit, `models.embedModels` and the memory.
 A budget counts tokens for aliases priced by token, seconds of audio for
 `stt` (1,000,000 units is 1 of LiteLLM budget), and dollars for
 `console-agent`, priced at its list price; the agent's key has 20 USD a day.

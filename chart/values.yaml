@@ -1,8 +1,8 @@
 # The hub's own choices: which model answers each purpose (gateway.aliases),
-# the images, and the settings of ai-models. A stack's values file
-# (infra/ai/values-<stack>.yaml) sets stack, every key's budget,
-# models.embedModels and the memory; the chart refuses to render without
-# them.
+# the images, and the settings of ai-models. Each stack's Application in
+# the umbrella's infra/argocd/ai.yaml sets, in helm.valuesObject, stack,
+# every key's budget, models.embedModels and the memory; the chart refuses
+# to render without them.
 stack: ""
 
 images:

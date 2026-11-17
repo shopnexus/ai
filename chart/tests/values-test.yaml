@@ -1,4 +1,4 @@
-# A stack's values, as infra/ai/values-<stack>.yaml sets them.
+# A stack's values, as its Application in infra/argocd/ai.yaml sets them.
 stack: prod
 models:
   embedModels: siglip2-so400m-patch16-384=/models/siglip2-so400m-patch16-384
